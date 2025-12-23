@@ -8,6 +8,8 @@ import { MatchBuildSection } from "@/components/MatchBuildSection";
 import Image from "next/image";
 import type { MatchPageData, TeamPlayer } from "@/types/match";
 import type { MatchListItem } from "@/types/matchList";
+import { WinProbabilityChart } from "@/components/WinProbabilityChart";
+import { computeWinProbability } from "@/lib/winProbability";
 
 /* ----------------------------------
    DATA DRAGON
@@ -190,6 +192,7 @@ export default async function Home({
           <SectionTitle title="Timeline" subtitle="Objectifs & events clés" />
           <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur">
             <HorizontalTimeline events={data.timelineEvents} />
+            <WinProbabilityChart data={computeWinProbability(data.timelineEvents)}/>
           </div>
         </section>
 

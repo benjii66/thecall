@@ -1,0 +1,65 @@
+{
+    "meta": {
+        "version": "1.0",
+        "description": "Heuristic-based win probability weights for LoL match analysis",
+        "philosophy": "Punish mistakes hard but never allow instant wins or losses"
+    },
+    "timeScaling": {
+        "early": {
+            "minutes": [
+                0,
+                14
+            ],
+            "multiplier": 1.2
+        },
+        "mid": {
+            "minutes": [
+                14,
+                25
+            ],
+            "multiplier": 1.0
+        },
+        "late": {
+            "minutes": [
+                25,
+                60
+            ],
+            "multiplier": 0.8
+        }
+    },
+    "kills": {
+        "kill": 1,
+        "death": -1,
+        "assist": 0.5,
+        "shutdownTaken": 3,
+        "shutdownGiven": -4
+    },
+    "objectives": {
+        "tower": {
+            "outer": 3,
+            "inner": 4,
+            "inhibitor": 6
+        },
+        "herald": 3,
+        "dragon": {
+            "first": 2,
+            "second": 3,
+            "third": 3,
+            "soul": 8
+        },
+        "baron": 10,
+        "elder": 14,
+        "voidGrub": 1.5
+    },
+    "economy": {
+        "goldDiffPer1000": 1.5
+    },
+    "limits": {
+        "maxPositiveScore": 25,
+        "maxNegativeScore": -25
+    },
+    "smoothing": {
+        "windowMinutes": 2,
+        "method": "moving-average"
+    }
+}

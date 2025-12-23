@@ -27,7 +27,6 @@ export async function getRuneMap(): Promise<Map<number, string>> {
   );
 
   const data = (await res.json()) as RunesReforged;
-  console.log("🟣 RUNES RAW DATA:", data);
 
   const map = new Map<number, string>();
 

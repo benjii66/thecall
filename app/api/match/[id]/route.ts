@@ -21,13 +21,11 @@ function getRunes(p: RiotParticipant, runeMap: Map<number, string>): string[] {
     .flatMap((style) =>
       style.selections.map((s) => {
         const rune = runeMap.get(s.perk);
-        console.log("🔹 RUNE ID:", s.perk, "→", rune);
         return rune;
       })
     )
     .filter((r): r is string => Boolean(r));
 
-  console.log(`🟡 FINAL RUNES for ${p.championName}:`, runes);
 
   return runes;
 }
