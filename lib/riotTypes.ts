@@ -35,7 +35,7 @@ export type RiotParticipant = {
 
   goldEarned: number;
 
-  win: boolean; // ✅ important
+  win: boolean;
   // items...
   item0: number;
   item1: number;
@@ -59,7 +59,7 @@ export type RiotMatch = {
   };
   info: {
     queueId: number;
-    gameDuration: number; // ✅ AJOUT
+    gameDuration: number;
     participants: RiotParticipant[];
     teams: RiotTeam[];
   };

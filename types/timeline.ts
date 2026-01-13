@@ -9,14 +9,20 @@ export type TimelineEvent = {
     | "herald"
     | "baron"
     | "tower"
-    | "grub";
+    | "grub"
+    | "gold";
   team: "ally" | "enemy";
   involved: boolean;
-  label?: string; // 👈 OPTIONNEL PARTOUT
+  label?: string;
   meta?: {
     victimChampion?: string;
     killerChampion?: string;
     assistingChampions?: string[];
     assistCount?: number;
+    dragonType?: string;
+    towerTier?: "outer" | "inner" | "inhibitor" | "nexus";
+    towerLane?: "top" | "mid" | "bot";
+    shutdownBounty?: number;
+    goldDiff?: number; // perspective ally : positif = avantage ally
   };
 };

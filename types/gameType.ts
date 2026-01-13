@@ -1,8 +1,7 @@
-type GameType = "all" | "draft" | "ranked" | "aram";
-
-const QUEUE_BY_TYPE: Record<GameType, number[] | null> = {
-  all: null,
-  draft: [400, 430],
+export const QUEUE_BY_TYPE = {
+  all: [],
   ranked: [420, 440],
-  aram: [450],
-};
+  draft: [400, 430],
+} as const;
+
+export type GameType = keyof typeof QUEUE_BY_TYPE;

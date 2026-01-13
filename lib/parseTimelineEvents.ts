@@ -1,3 +1,4 @@
+// Parse timeline events Riot API → TimelineEvent structurés
 import type { RiotMatch, RiotTimeline } from "./riotTypes";
 import { TimelineEvent } from "@/types/timeline";
 
@@ -17,6 +18,10 @@ function str(v: unknown): v is string {
   return typeof v === "string";
 }
 
+function safeNumber(v: unknown, fallback = 0) {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
 function getTime(timestamp: number) {
   const totalSeconds = Math.floor(timestamp / 1000);
   return {
@@ -25,9 +30,6 @@ function getTime(timestamp: number) {
   };
 }
 
-/* ----------------------------------
-   RAW EVENT TYPES
----------------------------------- */
 
 type ChampionKillEvent = {
   type: "CHAMPION_KILL";
@@ -61,9 +63,6 @@ type Participant = {
   championName: string;
 };
 
-/* ----------------------------------
-   TYPE GUARDS
----------------------------------- */
 
 function isChampionKill(e: unknown): e is ChampionKillEvent {
   return (
@@ -97,9 +96,6 @@ function isTowerKill(e: unknown): e is TowerKillEvent {
   );
 }
 
-/* ----------------------------------
-   UTILS
----------------------------------- */
 
 function getChampion(
   participants: Participant[],
@@ -134,9 +130,6 @@ function formatTowerLabel(raw: TowerKillEvent): string {
   return `Tower ${tier} ${lane}`;
 }
 
-/* ----------------------------------
-   MAIN PARSER
----------------------------------- */
 
 export function extractTimelineEvents(
   match: RiotMatch,
@@ -151,76 +144,113 @@ export function extractTimelineEvents(
   const myId = me.participantId;
   const myTeam = me.teamId;
 
-  return timeline.info.frames.flatMap((frame) => {
+  const allyIds = participants
+    .filter((p) => p.teamId === myTeam)
+    .map((p) => p.participantId);
+  const enemyIds = participants
+    .filter((p) => p.teamId !== myTeam)
+    .map((p) => p.participantId);
+
+  const parsed: TimelineEvent[] = [];
+
+  for (let frameIndex = 0; frameIndex < timeline.info.frames.length; frameIndex++) {
+    const frame = timeline.info.frames[frameIndex];
+    // Les frames sont indexées par minute (frame 0 = 0:00, frame 1 = 1:00, etc.)
+    // On utilise le timestamp du premier événement de la frame, ou on calcule à partir de l'index
+    const frameTimestamp = frame.events && frame.events.length > 0 
+      ? (frame.events[0] as { timestamp?: number }).timestamp || frameIndex * 60000
+      : frameIndex * 60000;
+    const { minute } = getTime(frameTimestamp);
     const events = frame.events as unknown[];
 
-    return events.flatMap((raw): TimelineEvent[] => {
-      /* ---------------- KILLS ---------------- */
+    parsed.push(
+      ...events.flatMap((raw): TimelineEvent[] => {
+      // Kills
 
       if (isChampionKill(raw)) {
         const { minute, second } = getTime(raw.timestamp);
 
-        const killerChampion = getChampion(participants, raw.killerId);
-        const victimChampion = getChampion(participants, raw.victimId);
+        const killer = participants.find((p) => p.participantId === raw.killerId);
+        const victim = participants.find((p) => p.participantId === raw.victimId);
+
+        const killerChampion = killer?.championName;
+        const victimChampion = victim?.championName;
         const assistingChampions = raw.assistingParticipantIds
           ?.map((id) => getChampion(participants, id))
           .filter(Boolean) as string[] | undefined;
 
         const assistCount = assistingChampions?.length ?? 0;
+        const killerIsAlly = killer ? killer.teamId === myTeam : false;
+        const victimIsAlly = victim ? victim.teamId === myTeam : false;
 
-        // TU TUES
-        if (raw.killerId === myId) {
+        const involved =
+          raw.killerId === myId ||
+          raw.victimId === myId ||
+          raw.assistingParticipantIds?.includes(myId);
+
+        // On encode TOUJOURS depuis la perspective de notre équipe :
+        // - Si un allié tue un ennemi → kill pour nous (bon)
+        // - Si un ennemi tue un allié → death pour nous (mauvais)
+        // Dans LoL, pas de friendly fire, donc on a toujours l'un ou l'autre
+        if (killerIsAlly && !victimIsAlly) {
+          // Allié tue ennemi → kill pour nous
           return [
             {
               minute,
               second,
               kind: "kill",
               team: "ally",
-              involved: true,
-              label: victimChampion ? `Killed ${victimChampion}` : "Kill",
-              meta: { victimChampion, assistCount },
+              involved,
+              label: killerChampion && victimChampion
+                ? `${killerChampion} killed ${victimChampion}`
+                : victimChampion
+                ? `Kill on ${victimChampion}`
+                : "Kill",
+              meta: {
+                victimChampion,
+                killerChampion,
+                assistingChampions,
+                assistCount,
+                shutdownBounty: safeNumber(
+                  (raw as { shutdownBounty?: unknown }).shutdownBounty,
+                  safeNumber((raw as { bounty?: unknown }).bounty, 0)
+                ),
+              },
             },
           ];
-        }
-
-        // TU MEURS
-        if (raw.victimId === myId) {
+        } else if (!killerIsAlly && victimIsAlly) {
+          // Ennemi tue allié → death pour nous
           return [
             {
               minute,
               second,
               kind: "death",
-              team: "enemy",
-              involved: true,
-              label: killerChampion ? `Killed by ${killerChampion}` : "Death",
+              team: "ally",
+              involved,
+              label: victimChampion && killerChampion
+                ? `${victimChampion} killed by ${killerChampion}`
+                : killerChampion
+                ? `Killed by ${killerChampion}`
+                : "Death",
               meta: {
+                victimChampion,
                 killerChampion,
                 assistingChampions,
                 assistCount,
+                shutdownBounty: safeNumber(
+                  (raw as { shutdownBounty?: unknown }).shutdownBounty,
+                  safeNumber((raw as { bounty?: unknown }).bounty, 0)
+                ),
               },
             },
           ];
         }
 
-        // ASSIST
-        if (raw.assistingParticipantIds?.includes(myId)) {
-          return [
-            {
-              minute,
-              second,
-              kind: "assist",
-              team: "ally",
-              involved: true,
-              label: victimChampion ? `Assist on ${victimChampion}` : "Assist",
-              meta: { victimChampion, assistCount },
-            },
-          ];
-        }
-
+        // Cas edge (ne devrait jamais arriver en LoL normal)
         return [];
       }
 
-      /* ---------------- OBJECTIVES ---------------- */
+      // Objectives
 
       if (isEliteMonster(raw)) {
         const { minute, second } = getTime(raw.timestamp);
@@ -240,11 +270,9 @@ export function extractTimelineEvents(
         }
 
         if (raw.monsterType === "DRAGON") {
-          const drake =
-            raw.monsterSubType
-              ?.replace("_DRAGON", "")
-              .toLowerCase()
-              .replace(/^\w/, (c) => c.toUpperCase()) ?? "Dragon";
+          const rawSub =
+            raw.monsterSubType?.replace("_DRAGON", "").toLowerCase() ?? "dragon";
+          const drake = rawSub.replace(/^\w/, (c) => c.toUpperCase());
 
           return [
             {
@@ -254,6 +282,7 @@ export function extractTimelineEvents(
               team: raw.killerTeamId === myTeam ? "ally" : "enemy",
               involved: false,
               label: `${drake} Drake`,
+              meta: { dragonType: rawSub },
             },
           ];
         }
@@ -288,10 +317,30 @@ export function extractTimelineEvents(
         }
       }
 
-      /* ---------------- TOWERS ---------------- */
+      // Towers
 
       if (isTowerKill(raw)) {
         const { minute, second } = getTime(raw.timestamp);
+
+        const tier =
+          raw.towerType === "OUTER_TURRET"
+            ? "outer"
+            : raw.towerType === "INNER_TURRET"
+            ? "inner"
+            : raw.towerType === "BASE_TURRET"
+            ? "inhibitor"
+            : raw.towerType === "NEXUS_TURRET"
+            ? "nexus"
+            : undefined;
+
+        const lane =
+          raw.laneType === "TOP_LANE"
+            ? "top"
+            : raw.laneType === "MID_LANE"
+            ? "mid"
+            : raw.laneType === "BOT_LANE"
+            ? "bot"
+            : undefined;
 
         return [
           {
@@ -301,11 +350,48 @@ export function extractTimelineEvents(
             team: raw.teamId === myTeam ? "ally" : "enemy",
             involved: false,
             label: formatTowerLabel(raw),
+            meta: { towerTier: tier, towerLane: lane },
           },
         ];
       }
 
       return [];
-    });
-  });
+    })
+    );
+
+    // GOLD DIFF (frame level)
+    const pf = (frame as { participantFrames?: unknown }).participantFrames;
+    if (pf && typeof pf === "object") {
+      const asRecord = pf as Record<string, unknown>;
+
+      const totalGoldFor = (ids: number[]) =>
+        ids.reduce((sum, id) => {
+          const p = asRecord[id.toString()];
+          if (!p || typeof p !== "object") return sum;
+          const gold = safeNumber(
+            (p as { totalGold?: unknown }).totalGold,
+            safeNumber((p as { gold?: unknown }).gold, 0)
+          );
+          return sum + gold;
+        }, 0);
+
+      const allyGold = totalGoldFor(allyIds);
+      const enemyGold = totalGoldFor(enemyIds);
+
+      if (allyGold > 0 || enemyGold > 0) {
+        const diff = allyGold - enemyGold;
+        parsed.push({
+          minute,
+          second: 0,
+          kind: "gold",
+          team: diff >= 0 ? "ally" : "enemy",
+          involved: false,
+          label: `${(diff / 1000).toFixed(1)}k gold diff`,
+          meta: { goldDiff: diff },
+        });
+      }
+    }
+  }
+
+  return parsed;
 }

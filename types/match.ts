@@ -3,6 +3,8 @@
 export type PlayerBuild = {
   items: string[];
   runes: string[];
+  itemNames?: Record<string, string>; // Map ID -> nom (optionnel, pour tooltips)
+  runeNames?: Record<string, string>; // Map chemin -> nom (optionnel, pour tooltips)
 };
 
 export type PlayerSummary = {
@@ -33,7 +35,24 @@ export type MatchPageData = {
   enemyTeam: TeamPlayer[];
 };
 
+// types/match.ts
+
+export type MatchListItem = {
+  id: string; // utilisé par le select
+  label: string; // texte affiché dans le dropdown
+
+  matchId: string; // id Riot réel
+  champion: string;
+  opponent: string;
+
+  win: boolean;
+  duration: number; // en secondes
+  queueId: number;
+};
+
 export type BuildData = {
-  items: string[]; // 👈 IDs DataDragon en string
-  runes: string[];
+  items: string[]; // IDs DataDragon en string
+  runes: string[]; // Chemins d'icônes de runes
+  itemNames?: Record<string, string>; // Map ID -> nom (optionnel, pour tooltips)
+  runeNames?: Record<string, string>; // Map chemin -> nom (optionnel, pour tooltips)
 };

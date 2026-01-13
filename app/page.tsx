@@ -1,527 +1,476 @@
-// app/page.tsx
-import { Navbar } from "@/components/Navbar";
-import { MatchSelector } from "@/components/MatchSelector";
-import { MatchTypeFilter } from "@/components/MatchTypeFilter";
-import { HorizontalTimeline } from "@/components/HorizontalTimeline";
-import { MatchBuildSection } from "@/components/MatchBuildSection";
+"use client";
 
-import Image from "next/image";
-import type { MatchPageData, TeamPlayer } from "@/types/match";
-import type { MatchListItem } from "@/types/matchList";
-import { WinProbabilityChart } from "@/components/WinProbabilityChart";
-import { computeWinProbability } from "@/lib/winProbability";
+import {
+  ArrowRight,
+  ShieldCheck,
+  Goal,
+  Sparkles,
+  Target,
+} from "lucide-react";
+import { NavbarWrapper } from "@/components/NavbarWrapper";
+import { RiotIdForm } from "@/components/RiotIdForm";
+import { NavigationButton } from "@/components/NavigationButton";
+import { useLanguage } from "@/lib/language";
 
-/* ----------------------------------
-   DATA DRAGON
----------------------------------- */
-
-const DD_VERSION = "14.18.1";
-
-const champIcon = (name: string) =>
-  `https://ddragon.leagueoflegends.com/cdn/${DD_VERSION}/img/champion/${name}.png`;
-
-const champSplash = (name: string) =>
-  `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${name}_0.jpg`;
-
-/* ----------------------------------
-   SERVER FETCH
----------------------------------- */
-
-async function getMatches(
-  type: "all" | "draft" | "ranked"
-): Promise<MatchListItem[]> {
-  try {
-    const res = await fetch(
-      `http://localhost:3000/api/matches?puuid=${process.env.MY_PUUID}&type=${type}`,
-      { cache: "no-store" }
-    );
-
-    if (!res.ok) return [];
-    const data = (await res.json()) as MatchListItem[];
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
-
-async function getMatch(id: string): Promise<MatchPageData | null> {
-  try {
-    const res = await fetch(`http://localhost:3000/api/match/${id}`, {
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-    return (await res.json()) as MatchPageData;
-  } catch {
-    return null;
-  }
-}
-
-/* ----------------------------------
-   PAGE
----------------------------------- */
-
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    matchId?: string;
-    type?: "all" | "draft" | "ranked";
-  }>;
-}) {
-  const { matchId, type = "all" } = await searchParams;
-
-  const matches = await getMatches(type);
-
-  if (!matches.length) {
-    return (
-      <main className="min-h-screen bg-[#05060b] text-white">
-        <Navbar />
-        <div className="mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center px-6">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_80px_rgba(0,0,0,0.55)]">
-            <p className="text-lg font-semibold">Aucun match disponible</p>
-            <p className="mt-2 text-sm text-white/60">
-              Impossible de récupérer la liste des matchs.
-            </p>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // Match sélectionné (si présent dans la liste), sinon premier match
-  const selectedMatchId =
-    matchId && matches.some((m) => m.id === matchId) ? matchId : matches[0].id;
-
-  // On tente d'abord le match sélectionné, puis les autres (anti match mort)
-  const orderedMatches: MatchListItem[] =
-    selectedMatchId && matches.some((m) => m.id === selectedMatchId)
-      ? [
-          matches.find((m) => m.id === selectedMatchId)!,
-          ...matches.filter((m) => m.id !== selectedMatchId),
-        ]
-      : matches;
-
-  let data: MatchPageData | null = null;
-  let finalMatchId: string | null = null;
-
-  for (const m of orderedMatches) {
-    const result = await getMatch(m.id);
-    if (result) {
-      data = result;
-      finalMatchId = m.id;
-      break;
-    }
-  }
-
-  if (!data || !finalMatchId) {
-    return (
-      <main className="min-h-screen bg-[#05060b] text-white">
-        <Navbar />
-        <div className="mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center px-6">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_80px_rgba(0,0,0,0.55)]">
-            <p className="text-lg font-semibold">Match indisponible</p>
-            <p className="mt-2 text-sm text-white/60">
-              Aucun match accessible via l’API Riot pour le moment.
-            </p>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // (Optionnel) Prépare des placeholders pour ton futur audit IA
-  const auditPositive = [
-    "Bon tempo early (objectifs sécurisés)",
-    "Bonne présence en fights",
-    "Build cohérent avec ton rôle",
+export default function LandingPage() {
+  const { t } = useLanguage();
+  
+  const features = [
+    {
+      title: t("landing.feature1Title"),
+      desc: t("landing.feature1Desc"),
+      icon: ShieldCheck,
+      proof: t("landing.feature1Proof"),
+    },
+    {
+      title: t("landing.feature2Title"),
+      desc: t("landing.feature2Desc"),
+      icon: Target,
+      proof: t("landing.feature2Proof"),
+    },
+    {
+      title: t("landing.feature3Title"),
+      desc: t("landing.feature3Desc"),
+      icon: Goal,
+      proof: t("landing.feature3Proof"),
+    },
   ];
-  const auditNegative = [
-    "KP perfectible sur mid game",
-    "Trop de gold non converti en tempo",
-    "Vision à optimiser avant objectifs",
+
+  const coachBlocks = [
+    t("landing.coachingExample1"),
+    t("landing.coachingExample2"),
   ];
 
   return (
-    <main className="min-h-screen text-white bg-[#05060b]">
-      <Navbar />
+    <main className="min-h-screen bg-[#05060b] text-white">
+      <NavbarWrapper />
 
-      {/* BACKGROUND LAYER (client LoL vibes) */}
+      {/* BACKGROUND LAYER (vibe client LoL) */}
       <BackgroundFX />
 
-      <section className="relative mx-auto max-w-7xl px-6 pb-16 pt-10">
-        {/* HERO / HEADER */}
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] backdrop-blur-md">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/50">
-                The Call • Match Center
-              </p>
-              <h1 className="text-3xl font-semibold tracking-tight lg:text-4xl">
-                Match Overview
-              </h1>
-              <p className="text-sm text-white/60">
-                Timeline, duel, builds et audit IA — style client LoL.
-              </p>
+      <section className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 py-16">
+        {/* BETA BADGE */}
+        <div className="flex items-center justify-center gap-3 text-xs text-white/60">
+          <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 font-medium text-cyan-300">
+            {t("landing.beta")}
+          </span>
+          <span className="text-white/50">•</span>
+          <span>{t("landing.focus")}</span>
+          <span className="text-white/50">•</span>
+          <span>{t("landing.postGame")}</span>
+        </div>
+
+        {/* HERO */}
+        <div className="rounded-3xl border border-white/10 bg-white/4 p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] backdrop-blur-md lg:flex lg:items-center lg:justify-between lg:gap-10">
+          <div className="flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/50">
+              {t("landing.tagline")}
+            </p>
+
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight leading-[1.05] lg:text-5xl">
+              {t("landing.title")}
+              <br />
+              <span className="text-white">{t("landing.titleHighlight")}</span> {t("landing.titleEnd")}
+            </h1>
+
+            <p className="mt-2 text-sm text-white/55">
+              <span className="font-semibold text-white/75">{t("landing.titleHighlight")}</span> — {t("landing.subtitle")}
+            </p>
+
+            <p className="mt-4 max-w-3xl text-base text-white/70">
+              {t("landing.description")}
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <NavigationButton href="/match" variant="primary" className="w-full sm:w-auto">
+                {t("landing.analyzeButton")}
+                <ArrowRight className="h-4 w-4" />
+              </NavigationButton>
+
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl border border-white/8 bg-white/3 px-4 py-3 text-sm font-semibold text-white/50 opacity-55 shadow-lg shadow-black/40 w-full sm:w-auto"
+                title={t("landing.riotConnectTitle")}
+              >
+                {t("landing.riotConnect")}
+              </button>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <div className="rounded-2xl border border-white/10 bg-black/30 p-2">
-                <MatchTypeFilter />
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/30 p-2">
-                <MatchSelector matches={matches} selected={finalMatchId} />
-              </div>
+            <RiotIdForm />
+
+            <div className="mt-5 flex flex-wrap gap-3 text-xs text-white/70">
+              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1">
+                <Sparkles className="h-3 w-3 text-cyan-300" />
+                {t("landing.fastReport")}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/40 px-3 py-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                {t("landing.roleAdapted")}
+              </span>
             </div>
+
+            <p className="mt-2 text-xs text-white/45">
+              {t("landing.taglineShort")}
+            </p>
+
+            <p className="mt-3 text-xs text-white/45">
+              {t("landing.targetAudience")}
+            </p>
           </div>
 
-          {/* mini info bar */}
-          <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <InfoPill
-              label="Résultat"
-              value={data.me.win ? "VICTOIRE" : "DÉFAITE"}
-              tone={data.me.win ? "good" : "bad"}
-            />
-            <InfoPill label="Ton rôle" value={data.me.role} />
-            <InfoPill label="Ton champion" value={data.me.champion} />
+          {/* Hero preview card */}
+          <div className="mt-8 hidden flex-1 justify-end lg:flex">
+            <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-4 shadow-[0_0_40px_rgba(0,0,0,0.8)]">
+              <div className="mb-2 flex items-center justify-between text-xs text-white/60">
+                <span className="font-semibold text-white/80">
+                  {t("landing.previewWinProb")}
+                </span>
+                <span className="rounded-full bg-emerald-500/10 px-2 py-[2px] text-[10px] text-emerald-300">
+                  {t("landing.previewWinProbValue")}
+                </span>
+              </div>
+              <p className="mb-2 text-[11px] text-white/55">
+                {t("landing.previewKeyMoment")} <span className="font-semibold">15:15</span> —
+                {t("landing.previewHerald")}{" "}
+                <span className="text-rose-300">(-18% win)</span>
+              </p>
+
+              <div className="relative h-20 w-full overflow-hidden rounded-lg bg-linear-to-b from-white/5 via-black/60 to-black">
+                <svg
+                  viewBox="0 0 100 40"
+                  preserveAspectRatio="none"
+                  className="h-full w-full"
+                >
+                  {/* grid */}
+                  <defs>
+                    <pattern
+                      id="heroGrid"
+                      x="0"
+                      y="0"
+                      width="4"
+                      height="4"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <path
+                        d="M 4 0 L 0 0 0 4"
+                        fill="none"
+                        stroke="rgba(148,163,184,0.28)"
+                        strokeWidth="0.2"
+                      />
+                    </pattern>
+                    <linearGradient id="heroArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(34,211,238,0.35)" />
+                      <stop offset="50%" stopColor="rgba(148,163,184,0.18)" />
+                      <stop offset="100%" stopColor="rgba(248,113,113,0.3)" />
+                    </linearGradient>
+                    <linearGradient id="heroLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#22d3ee" />
+                      <stop offset="40%" stopColor="#22c55e" />
+                      <stop offset="75%" stopColor="#facc15" />
+                      <stop offset="100%" stopColor="#f97373" />
+                    </linearGradient>
+                  </defs>
+
+                  <rect
+                    x="0"
+                    y="0"
+                    width="100"
+                    height="40"
+                    fill="url(#heroGrid)"
+                    opacity="0.2"
+                  />
+
+                  {/* top / bottom zones */}
+                  <rect
+                    x="0"
+                    y="0"
+                    width="100"
+                    height="20"
+                    fill="rgba(34,197,94,0.12)"
+                  />
+                  <rect
+                    x="0"
+                    y="20"
+                    width="100"
+                    height="20"
+                    fill="rgba(248,113,113,0.12)"
+                  />
+
+                  {/* baseline 50% */}
+                  <line
+                    x1="0"
+                    x2="100"
+                    y1="20"
+                    y2="20"
+                    stroke="rgba(248,250,252,0.3)"
+                    strokeDasharray="3 3"
+                    strokeWidth="0.5"
+                  />
+
+                  {/* sample curve area */}
+                  <path
+                    d="M 0 23 C 10 24 18 26 26 22 C 35 18 42 14 50 18 C 58 22 64 30 72 28 C 82 25 88 18 100 19 L 100 40 L 0 40 Z"
+                    fill="url(#heroArea)"
+                    opacity="0.9"
+                  />
+
+                  {/* sample curve line */}
+                  <path
+                    d="M 0 23 C 10 24 18 26 26 22 C 35 18 42 14 50 18 C 58 22 64 30 72 28 C 82 25 88 18 100 19"
+                    fill="none"
+                    stroke="url(#heroLine)"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+
+                  {/* sample event markers */}
+                  <g>
+                    {/* Kill */}
+                    <line
+                      x1="18"
+                      y1="24"
+                      x2="18"
+                      y2="32"
+                      stroke="rgba(248,250,252,0.45)"
+                      strokeWidth="0.5"
+                      strokeDasharray="2 2"
+                    />
+                    <circle cx="18" cy="24" r="1.3" fill="#22c55e">
+                      <title>Kill — +6% win prob</title>
+                    </circle>
+                    <text
+                      x="18"
+                      y="36"
+                      textAnchor="middle"
+                      fontSize="4"
+                      fill="rgba(248,250,252,0.75)"
+                    >
+                      Kill
+                    </text>
+
+                    {/* Herald */}
+                    <line
+                      x1="50"
+                      y1="18"
+                      x2="50"
+                      y2="30"
+                      stroke="rgba(248,250,252,0.45)"
+                      strokeWidth="0.5"
+                      strokeDasharray="2 2"
+                    />
+                    <circle cx="50" cy="18" r="1.3" fill="#22c55e">
+                      <title>Herald perdu — -18% win prob</title>
+                    </circle>
+                    <text
+                      x="50"
+                      y="34"
+                      textAnchor="middle"
+                      fontSize="4"
+                      fill="rgba(248,250,252,0.75)"
+                    >
+                      Herald
+                    </text>
+
+                    {/* Baron */}
+                    <line
+                      x1="82"
+                      y1="21"
+                      x2="82"
+                      y2="31"
+                      stroke="rgba(248,250,252,0.45)"
+                      strokeWidth="0.5"
+                      strokeDasharray="2 2"
+                    />
+                    <circle cx="82" cy="21" r="1.3" fill="#f97316">
+                      <title>Baron — swing décisif</title>
+                    </circle>
+                    <text
+                      x="82"
+                      y="35"
+                      textAnchor="middle"
+                      fontSize="4"
+                      fill="rgba(248,250,252,0.75)"
+                    >
+                      Baron
+                    </text>
+                  </g>
+                </svg>
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-3 text-[11px] text-white/70">
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+                    {t("landing.previewMacro")}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    {t("landing.previewMacroScore")}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-white/55">
+                    {t("landing.previewMacroValue")}
+                  </div>
+                  <div className="mt-1 h-1.5 w-full rounded-full bg-white/10">
+                    <div className="h-full w-[78%] rounded-full bg-cyan-400" />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+                    {t("landing.previewLaning")}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    {t("landing.previewLaningScore")}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-white/55">
+                    {t("landing.previewLaningValue")}
+                  </div>
+                  <div className="mt-1 h-1.5 w-full rounded-full bg-white/10">
+                    <div className="h-full w-[64%] rounded-full bg-emerald-400" />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+                    {t("landing.previewDecisions")}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    {t("landing.previewDecisionsScore")}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-white/55">
+                    {t("landing.previewDecisionsValue")}
+                  </div>
+                  <div className="mt-1 h-1.5 w-full rounded-full bg-white/10">
+                    <div className="h-full w-[42%] rounded-full bg-rose-400" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* TIMELINE */}
-        <section className="mt-10">
-          <SectionTitle title="Timeline" subtitle="Objectifs & events clés" />
-          <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur">
-            <HorizontalTimeline events={data.timelineEvents} />
-            <WinProbabilityChart data={computeWinProbability(data.timelineEvents)}/>
-          </div>
-        </section>
-
-        {/* YOU vs OPPONENT */}
-        <section className="mt-10">
-          <SectionTitle
-            title="Duel"
-            subtitle="Focus principal : toi vs vis-à-vis"
-          />
-
-          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-stretch">
-            <DuelCard
-              color="cyan"
-              title="You"
-              champion={data.me.champion}
-              role={data.me.role}
-              kda={data.me.kda}
-              kp={data.me.kp}
-              gold={data.me.gold}
-              win={data.me.win}
-            />
-
-            <div className="hidden lg:flex flex-col items-center justify-center gap-3">
-              <div className="text-white/20 font-semibold text-5xl">VS</div>
-              <div
-                className={`rounded-full border px-5 py-2 text-sm font-semibold tracking-wide
-                  ${
-                    data.me.win
-                      ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
-                      : "border-red-400/30 bg-red-500/10 text-red-200"
-                  }`}
-              >
-                {data.me.win ? "VICTOIRE" : "DÉFAITE"}
+        {/* EXEMPLE DE RAPPORT */}
+        <div className="rounded-2xl border border-white/10 bg-white/3 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+          <h2 className="mb-4 text-lg font-semibold text-white">
+            {t("landing.exampleTitle")}
+          </h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
+                {t("landing.exampleKeyMoment")}
               </div>
+              <p className="text-sm text-white/90">
+                {t("landing.exampleKeyMomentText")}
+              </p>
+              <p className="mt-1 text-xs text-white/60">
+                {t("landing.exampleKeyMomentConsequence")}
+              </p>
             </div>
 
-            {data.opponent ? (
-              <DuelCard
-                color="red"
-                title="Opponent"
-                champion={data.opponent.champion}
-                role={data.opponent.role}
-                kda={data.opponent.kda}
-                kp={data.opponent.kp}
-                gold={data.opponent.gold}
-                win={!data.me.win}
-              />
-            ) : (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-white/60">
-                Impossible d’identifier un vis-à-vis (role match).
+            <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
+                {t("landing.exampleRootCause")}
               </div>
-            )}
-          </div>
-        </section>
+              <p className="text-sm text-white/90">
+                {t("landing.exampleRootCauseText")}
+              </p>
+              <p className="mt-1 text-xs text-white/60">
+                {t("landing.exampleRootCauseDetail")}
+              </p>
+            </div>
 
-        {/* BUILDS */}
-        <section className="mt-10">
-          <SectionTitle
-            title="Builds"
-            subtitle="Items & runes utilisés dans la game"
-          />
-          <div className="mt-4">
-            <MatchBuildSection
-              you={data.me.build}
-              opponent={data.opponent?.build}
-            />
+            <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
+                {t("landing.exampleAction")}
+              </div>
+              <p className="text-sm text-white/90">
+                {t("landing.exampleActionText")}
+              </p>
+              <p className="mt-1 text-xs text-white/60">
+                {t("landing.exampleActionDetail")}
+              </p>
+            </div>
           </div>
-        </section>
+        </div>
 
-        {/* TEAMS */}
-        <section className="mt-10">
-          <SectionTitle title="Teams" subtitle="Lisible, compact, efficace" />
-          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <TeamList title="Your Team" team={data.allyTeam} tone="ally" />
-            <TeamList title="Enemy Team" team={data.enemyTeam} tone="enemy" />
+        {/* HOW IT WORKS (3 actions concrètes) */}
+        <div className="mt-6 grid gap-3 text-xs text-white/70 sm:grid-cols-3">
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-semibold text-cyan-300">
+              1
+            </span>
+            <p>{t("landing.howItWorks1")}</p>
           </div>
-        </section>
-
-        {/* AUDIT IA */}
-        <section className="mt-10">
-          <SectionTitle
-            title="Audit IA"
-            subtitle="Deux blocs : positif vs négatif (on branchera le vrai modèle après)"
-          />
-
-          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <AuditCard title="Points forts" tone="good" items={auditPositive} />
-            <AuditCard
-              title="Points à améliorer"
-              tone="bad"
-              items={auditNegative}
-            />
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-semibold text-cyan-300">
+              2
+            </span>
+            <p>{t("landing.howItWorks2")}</p>
           </div>
-        </section>
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-semibold text-cyan-300">
+              3
+            </span>
+            <p>{t("landing.howItWorks3")}</p>
+          </div>
+        </div>
+
+        {/* FEATURES */}
+        <div className="grid gap-4 md:grid-cols-3">
+          {features.map(({ title, desc, icon: Icon, proof }) => (
+            <div
+              key={title}
+              className="rounded-2xl border border-white/10 bg-white/3 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
+            >
+              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
+                <Icon size={18} />
+              </div>
+              <h3 className="text-lg font-semibold text-white/90">{title}</h3>
+              <p className="mt-2 text-sm text-white/60">{desc}</p>
+              {proof && (
+                <p className="mt-3 text-[11px] font-medium uppercase tracking-widest text-white/40">
+                  {proof}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* WHAT YOU GET AFTER A GAME */}
+        <div className="grid gap-6 rounded-2xl border border-white/10 bg-linear-to-br from-white/5 via-transparent to-cyan-500/5 p-6 md:grid-cols-[1.6fr_1.1fr]">
+          <div>
+            <h2 className="flex items-center gap-2 text-2xl font-semibold text-white">
+              <Sparkles className="h-5 w-5 text-cyan-300" />{t("landing.coachingTitle")}
+            </h2>
+            <p className="mt-3 text-sm text-white/70">
+              {t("landing.coachingSubtitle")}
+            </p>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-cyan-500/20 bg-black/40 p-4 text-sm">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+              <Target className="h-4 w-4" />
+              {t("landing.coachingExample")}
+            </div>
+            <ul className="space-y-2 text-white/70">
+              {coachBlocks.map((line, idx) => (
+                <li key={idx} className="flex gap-2">
+                  <span className="mt-[2px] h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </section>
     </main>
   );
 }
 
-/* ----------------------------------
-   UI PARTS
----------------------------------- */
-
 function BackgroundFX() {
   return (
     <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {/* base gradient */}
       <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_30%_0%,rgba(0,255,255,0.12),transparent_60%),radial-gradient(900px_500px_at_80%_20%,rgba(255,0,128,0.10),transparent_60%),radial-gradient(1100px_700px_at_50%_120%,rgba(120,70,255,0.10),transparent_60%)]" />
-      {/* vignette */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.85)_100%)]" />
-      {/* noise (via globals.css .noise) */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.9)_100%)]" />
       <div className="absolute inset-0 opacity-[0.18] noise" />
-    </div>
-  );
-}
-
-function SectionTitle({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle?: string;
-}) {
-  return (
-    <div className="flex items-end justify-between gap-4">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        {subtitle ? (
-          <p className="mt-1 text-sm text-white/55">{subtitle}</p>
-        ) : null}
-      </div>
-      <div className="hidden md:block h-px flex-1 bg-gradient-to-r from-white/0 via-white/10 to-white/0" />
-    </div>
-  );
-}
-
-function InfoPill({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "good" | "bad";
-}) {
-  const toneCls =
-    tone === "good"
-      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"
-      : tone === "bad"
-      ? "border-red-400/20 bg-red-500/10 text-red-100"
-      : "border-white/10 bg-black/20 text-white";
-
-  return (
-    <div className={`rounded-2xl border p-4 ${toneCls}`}>
-      <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function DuelCard({
-  title,
-  champion,
-  role,
-  kda,
-  kp,
-  gold,
-  color,
-  win,
-}: {
-  title: string;
-  champion: string;
-  role: string;
-  kda: string;
-  kp: number;
-  gold: number;
-  color: "cyan" | "red";
-  win: boolean;
-}) {
-  const borderGlow =
-    color === "cyan"
-      ? "shadow-[0_0_0_1px_rgba(34,211,238,0.15),0_30px_100px_rgba(0,0,0,0.65)]"
-      : "shadow-[0_0_0_1px_rgba(248,113,113,0.14),0_30px_100px_rgba(0,0,0,0.65)]";
-
-  const ring = color === "cyan" ? "ring-cyan-400/20" : "ring-red-400/20";
-
-  const badge = win
-    ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
-    : "border-red-400/30 bg-red-500/10 text-red-200";
-
-  return (
-    <div
-      className={`relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur ${borderGlow} ring-1 ${ring}`}
-    >
-      {/* splash */}
-      <Image
-        src={champSplash(champion)}
-        alt=""
-        fill
-        className="object-cover opacity-[0.12]"
-        priority
-      />
-      {/* overlay gradients */}
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(0,0,0,0.75),rgba(0,0,0,0.35),rgba(0,0,0,0.75))]" />
-      <div className="absolute inset-0 bg-[radial-gradient(800px_260px_at_15%_15%,rgba(255,255,255,0.10),transparent_60%)]" />
-
-      <div className="relative">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Image
-                src={champIcon(champion)}
-                alt={champion}
-                width={54}
-                height={54}
-                className="rounded-xl"
-              />
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[10px] tracking-wide text-white/80">
-                {role}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/50">
-                {title}
-              </p>
-              <h3 className="text-lg font-semibold leading-tight">
-                {champion}
-              </h3>
-            </div>
-          </div>
-
-          <div
-            className={`rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}
-          >
-            {win ? "WIN" : "LOSS"}
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-3 gap-3">
-          <Stat label="KDA" value={kda} />
-          <Stat label="KP" value={`${kp}%`} />
-          <Stat label="Gold" value={`${gold}`} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-semibold text-white/90">{value}</p>
-    </div>
-  );
-}
-
-function TeamList({
-  title,
-  team,
-  tone,
-}: {
-  title: string;
-  team: TeamPlayer[];
-  tone: "ally" | "enemy";
-}) {
-  const headerTone = tone === "ally" ? "text-cyan-200/90" : "text-red-200/90";
-
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className={`text-sm font-semibold ${headerTone}`}>{title}</h3>
-        <div className="h-px w-24 bg-gradient-to-r from-white/0 via-white/15 to-white/0" />
-      </div>
-
-      <ul className="space-y-2">
-        {team.map((p) => (
-          <li
-            key={`${title}-${p.champion}`}
-            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
-          >
-            <Image
-              src={champIcon(p.champion)}
-              alt={p.champion}
-              width={28}
-              height={28}
-              className="rounded-lg"
-            />
-            <span className="flex-1 text-sm text-white/90">{p.champion}</span>
-            <span className="text-sm text-white/55">{p.kda}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function AuditCard({
-  title,
-  tone,
-  items,
-}: {
-  title: string;
-  tone: "good" | "bad";
-  items: string[];
-}) {
-  const toneCls =
-    tone === "good"
-      ? "border-emerald-400/20 bg-emerald-500/10"
-      : "border-red-400/20 bg-red-500/10";
-
-  const titleCls = tone === "good" ? "text-emerald-200" : "text-red-200";
-
-  return (
-    <div className={`rounded-3xl border p-5 backdrop-blur ${toneCls}`}>
-      <h4 className={`text-sm font-semibold ${titleCls}`}>{title}</h4>
-      <ul className="mt-3 space-y-2 text-sm text-white/80">
-        {items.map((t) => (
-          <li key={t} className="flex gap-2">
-            <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-white/50" />
-            <span>{t}</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

@@ -1,5 +1,10 @@
 export type MatchListItem = {
-  id: string; // EUW1_7645...
-  label: string; // "Viego vs Karthus • 32:18 • Victoire"
-  queueId: number; // 400 / 420 / 440
+  id: string;
+  label: string; // "Viego vs XinZhao • 23:21 • Victoire"
+  queueId: number;
+
+  champion: string;
+  opponent: string;
+  win: boolean;
+  duration: number;
 };

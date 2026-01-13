@@ -1,6 +1,8 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastContainer } from "@/components/Toast";
+import { LanguageProvider } from "@/lib/language";
 
 export const metadata: Metadata = {
   title: "The Call",
@@ -15,7 +17,10 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className="min-h-screen bg-[#05060b] text-white antialiased">
-        {children}
+        <LanguageProvider>
+          {children}
+          <ToastContainer />
+        </LanguageProvider>
       </body>
     </html>
   );

@@ -1,101 +1,142 @@
-// lib/matchCache.ts
+// In-memory cache pour données Riot API (réduit rate limits et améliorer perf)
+// Limitation: perdu au restart, pas partagé entre instances
 import type { RiotMatch, RiotTimeline } from "@/lib/riotTypes";
 import type { MatchListItem } from "@/types/matchList";
 
-type CacheEntry<T> = {
-  value: T;
+type Entry<T> = {
+  data: T;
   expiresAt: number;
 };
 
-const now = () => Date.now();
+export type MatchListCacheEntry = {
+  data: MatchListItem[];
+  expiresAt: number;
+  cursor: number;
+  exhausted: boolean;
+};
+
+function now() {
+  return Date.now();
+}
 
 export class MatchCache {
-  private matchList = new Map<string, CacheEntry<MatchListItem[]>>();
-  private matches = new Map<string, CacheEntry<RiotMatch>>();
-  private timelines = new Map<string, CacheEntry<RiotTimeline>>();
+  private matchCache = new Map<string, Entry<RiotMatch>>();
+  private timelineCache = new Map<string, Entry<RiotTimeline>>();
+  private listCache = new Map<string, MatchListCacheEntry>();
 
-  constructor(
-    private ttlMs = 60_000, // 60s par défaut
-    private maxMatches = 50 // anti-mémoire infinie
-  ) {}
+  // Locks pour éviter double fetch simultané
+  private inflightMatch = new Map<string, Promise<RiotMatch>>();
+  private inflightTimeline = new Map<string, Promise<RiotTimeline>>();
+  private inflightList = new Map<string, Promise<MatchListCacheEntry>>();
 
-  /* ---------------------------
-     Match list (par puuid+type)
-  --------------------------- */
-
-  private listKey(puuid: string, type: string) {
-    return `${puuid}:${type}`;
-  }
-
-  getMatchList(puuid: string, type: string): MatchListItem[] | null {
-    const key = this.listKey(puuid, type);
-    const entry = this.matchList.get(key);
-    if (!entry) return null;
-    if (entry.expiresAt < now()) {
-      this.matchList.delete(key);
+  getMatch(id: string): RiotMatch | null {
+    const e = this.matchCache.get(id);
+    if (!e) return null;
+    if (e.expiresAt < now()) {
+      this.matchCache.delete(id);
       return null;
     }
-    return entry.value;
+    return e.data;
   }
 
-  setMatchList(puuid: string, type: string, list: MatchListItem[]) {
-    // Option très utile : ne pas “figer” un état vide
-    if (!list.length) return;
-
-    const key = this.listKey(puuid, type);
-    this.matchList.set(key, { value: list, expiresAt: now() + this.ttlMs });
+  setMatch(id: string, match: RiotMatch, ttlMs = 10 * 60 * 1000) {
+    this.matchCache.set(id, { data: match, expiresAt: now() + ttlMs });
   }
 
-  /* ---------------------------
-     Match (par matchId)
-  --------------------------- */
+  async withMatch(id: string, fetcher: () => Promise<RiotMatch>) {
+    const cached = this.getMatch(id);
+    if (cached) return cached;
 
-  getMatch(matchId: string): RiotMatch | null {
-    const entry = this.matches.get(matchId);
-    if (!entry) return null;
-    if (entry.expiresAt < now()) {
-      this.matches.delete(matchId);
+    const inflight = this.inflightMatch.get(id);
+    if (inflight) return inflight;
+
+    const p = (async () => {
+      try {
+        const m = await fetcher();
+        this.setMatch(id, m);
+        return m;
+      } finally {
+        this.inflightMatch.delete(id);
+      }
+    })();
+
+    this.inflightMatch.set(id, p);
+    return p;
+  }
+
+  getTimeline(id: string): RiotTimeline | null {
+    const e = this.timelineCache.get(id);
+    if (!e) return null;
+    if (e.expiresAt < now()) {
+      this.timelineCache.delete(id);
       return null;
     }
-    return entry.value;
+    return e.data;
   }
 
-  setMatch(matchId: string, match: RiotMatch) {
-    this.matches.set(matchId, { value: match, expiresAt: now() + this.ttlMs });
-
-    // petit nettoyage simple
-    if (this.matches.size > this.maxMatches) {
-      const firstKey = this.matches.keys().next().value as string | undefined;
-      if (firstKey) this.matches.delete(firstKey);
-    }
+  setTimeline(id: string, timeline: RiotTimeline, ttlMs = 10 * 60 * 1000) {
+    this.timelineCache.set(id, { data: timeline, expiresAt: now() + ttlMs });
   }
 
-  /* ---------------------------
-     Timeline (par matchId)
-  --------------------------- */
+  async withTimeline(id: string, fetcher: () => Promise<RiotTimeline>) {
+    const cached = this.getTimeline(id);
+    if (cached) return cached;
 
-  getTimeline(matchId: string): RiotTimeline | null {
-    const entry = this.timelines.get(matchId);
-    if (!entry) return null;
-    if (entry.expiresAt < now()) {
-      this.timelines.delete(matchId);
+    const inflight = this.inflightTimeline.get(id);
+    if (inflight) return inflight;
+
+    const p = (async () => {
+      try {
+        const t = await fetcher();
+        this.setTimeline(id, t);
+        return t;
+      } finally {
+        this.inflightTimeline.delete(id);
+      }
+    })();
+
+    this.inflightTimeline.set(id, p);
+    return p;
+  }
+
+  getMatchList(key: string): MatchListCacheEntry | null {
+    const e = this.listCache.get(key);
+    if (!e) return null;
+    if (e.expiresAt < now()) {
+      this.listCache.delete(key);
       return null;
     }
-    return entry.value;
+    return e;
   }
 
-  setTimeline(matchId: string, timeline: RiotTimeline) {
-    this.timelines.set(matchId, {
-      value: timeline,
-      expiresAt: now() + this.ttlMs,
-    });
+  setMatchList(key: string, entry: MatchListCacheEntry) {
+    this.listCache.set(key, entry);
+  }
 
-    if (this.timelines.size > this.maxMatches) {
-      const firstKey = this.timelines.keys().next().value as string | undefined;
-      if (firstKey) this.timelines.delete(firstKey);
-    }
+  async withMatchList(
+    key: string,
+    builder: (prev: MatchListCacheEntry | null) => Promise<MatchListCacheEntry>
+  ) {
+    const cached = this.getMatchList(key);
+    if (cached) return cached;
+
+    const inflight = this.inflightList.get(key);
+    if (inflight) return inflight;
+
+    const p = (async () => {
+      try {
+        const prev = this.getMatchList(key);
+        const next = await builder(prev);
+        this.setMatchList(key, next);
+        return next;
+      } finally {
+        this.inflightList.delete(key);
+      }
+    })();
+
+    this.inflightList.set(key, p);
+    return p;
   }
 }
 
-// singleton (cache mémoire serveur)
-export const matchCache = new MatchCache(60_000, 50);
+export const matchCache = new MatchCache();
