@@ -1,9 +1,14 @@
 // POST /api/coaching - Génère rapport coaching (OpenAI premium ou heuristique free)
 import { NextRequest, NextResponse } from "next/server";
+import { getMatchDetailsController } from "@/lib/controllers/matchController";
 import type { MatchPageData } from "@/types/match";
 import type { CoachingReport } from "@/types/coaching";
 import { computeWinProbability } from "@/lib/winProbability";
 import { getUserTier, canDoCoaching, getUserTierLimits } from "@/lib/tier";
+import { validateJsonSize } from "@/lib/security";
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
+import { getCsrfTokenFromRequest, isSameOriginRequest, requiresCsrfProtection, validateCsrfToken } from "@/lib/csrf";
+import { logger } from "@/lib/logger";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -82,7 +87,7 @@ async function generateCoachingReport(
 
     return parseLLMResponse(content, matchData, winProbData, isPremium);
   } catch (error) {
-    console.error("Coaching API error:", error);
+    logger.error("Coaching API error", error);
     // Fallback heuristique en cas d'erreur (même si premium)
     return generateHeuristicReport(matchData, winProbData, isPremium);
   }
@@ -306,21 +311,21 @@ function parseLLMResponse(
     // Validation des sections premium (optionnelles, uniquement si isPremium)
     if (isPremium) {
       if (parsed.rootCauses && (!parsed.rootCauses.causes || !Array.isArray(parsed.rootCauses.causes) || parsed.rootCauses.causes.length === 0)) {
-        console.warn("[Coaching] rootCauses invalide ou vide, suppression");
+        logger.warn("[Coaching] rootCauses invalide ou vide, suppression");
         parsed.rootCauses = undefined;
       }
       if (parsed.actionPlan && (!parsed.actionPlan.rules || !Array.isArray(parsed.actionPlan.rules) || parsed.actionPlan.rules.length === 0)) {
-        console.warn("[Coaching] actionPlan invalide ou vide, suppression");
+        logger.warn("[Coaching] actionPlan invalide ou vide, suppression");
         parsed.actionPlan = undefined;
       }
       if (parsed.drills && (!parsed.drills.exercises || !Array.isArray(parsed.drills.exercises) || parsed.drills.exercises.length === 0)) {
-        console.warn("[Coaching] drills invalide ou vide, suppression");
+        logger.warn("[Coaching] drills invalide ou vide, suppression");
         parsed.drills = undefined;
       }
       
       // Log pour debug
       if (isPremium) {
-        console.log("[Coaching Premium] Sections générées:", {
+        logger.debug("[Coaching Premium] Sections générées", {
           hasRootCauses: !!parsed.rootCauses,
           hasActionPlan: !!parsed.actionPlan,
           hasDrills: !!parsed.drills,
@@ -335,7 +340,7 @@ function parseLLMResponse(
 
     return parsed;
   } catch (error) {
-    console.error("Failed to parse LLM response:", error);
+    logger.error("Failed to parse LLM response", error);
     // Fallback heuristique (sans sections premium si pas isPremium)
     return generateHeuristicReport(matchData, winProbData, isPremium);
   }
@@ -346,7 +351,7 @@ function generateHeuristicReport(
   winProbData: ReturnType<typeof computeWinProbability>,
   isPremium: boolean = false
 ): CoachingReport {
-  const { me, opponent, timelineEvents } = matchData;
+  const { me, timelineEvents } = matchData;
   const winProb = winProbData;
 
   // Détecter turning point (plus grande chute/remontée)
@@ -374,9 +379,7 @@ function generateHeuristicReport(
   const earlyDeaths = timelineEvents.filter(
     (e) => e.kind === "death" && e.involved && e.minute < 10
   );
-  const midGameDeaths = timelineEvents.filter(
-    (e) => e.kind === "death" && e.involved && e.minute >= 15 && e.minute < 25
-  );
+  // midGameDeaths calculé mais non utilisé pour l'instant (réservé pour futures améliorations)
   const objectiveLosses = timelineEvents.filter(
     (e) => (e.kind === "dragon" || e.kind === "herald" || e.kind === "baron") && e.team === "enemy"
   );
@@ -509,16 +512,95 @@ function generateHeuristicReport(
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as {
-      matchData: MatchPageData;
+    // CSRF Protection (sauf pour les appels depuis Server Components)
+    if (requiresCsrfProtection("POST", req.nextUrl.pathname)) {
+      // Permettre les appels depuis le même serveur (Server Components)
+      const isSameOrigin = isSameOriginRequest(req);
+      
+      if (!isSameOrigin) {
+        const csrfToken = getCsrfTokenFromRequest(req);
+        const sessionToken = req.cookies.get("csrf-token")?.value;
+        
+        if (!csrfToken || !validateCsrfToken(csrfToken, sessionToken || "")) {
+          return NextResponse.json(
+            { error: "CSRF token invalide ou manquant" },
+            { status: 403 }
+          );
+        }
+      }
+    }
+    
+    // Rate limiting
+    const identifier = getRateLimitIdentifier(req);
+    const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.coaching);
+    
+    if (!rateLimit.allowed) {
+      const response = NextResponse.json(
+        {
+          error: "Too many requests",
+          message: "Tu as dépassé la limite de requêtes. Réessaie dans quelques instants.",
+          retryAfter: Math.ceil((rateLimit.resetAt - Date.now()) / 1000),
+        },
+        { status: 429 }
+      );
+      response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.coaching.maxRequests));
+      response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
+      response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+      response.headers.set("Retry-After", String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)));
+      return response;
+    }
+    
+    // Limiter la taille du body (max 5MB)
+    const bodyText = await req.text();
+    if (bodyText.length > 5 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Request body too large" },
+        { status: 413 }
+      );
+    }
+    
+    const body = JSON.parse(bodyText) as {
+      matchData?: MatchPageData;
+      matchId?: string;
       isPremium?: boolean;
     };
-
-    if (!body.matchData) {
+    
+    // Valider la taille de l'objet JSON
+    if (!validateJsonSize(body, 5 * 1024 * 1024)) {
       return NextResponse.json(
-        { error: "Missing matchData" },
+        { error: "Request data too large" },
+        { status: 413 }
+      );
+    }
+    
+    // Validation: Soit matchData, soit matchId
+    if (!body.matchData && !body.matchId) {
+      return NextResponse.json(
+        { error: "Missing matchData or matchId" },
         { status: 400 }
       );
+    }
+
+    let matchData = body.matchData;
+
+    // Si on a seulement matchId, on récupère les données
+    if (!matchData && body.matchId) {
+      const puuid = process.env.MY_PUUID || process.env.NEXT_PUBLIC_PUUID || ""; // TODO: Mieux gérer le PUUID
+      
+      if (!puuid) {
+         return NextResponse.json({ error: "Configuration error: Missing PUUID" }, { status: 500 });
+      }
+
+      const fetchedData = await getMatchDetailsController(body.matchId, puuid);
+      if (!fetchedData) {
+        return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      }
+      matchData = fetchedData;
+    }
+
+    // Verify matchData presence
+    if (!matchData) {
+        return NextResponse.json({ error: "Failed to retrieve match data" }, { status: 404 });
     }
 
     // TODO: Récupérer userId depuis session/cookie
@@ -545,19 +627,23 @@ export async function POST(req: NextRequest) {
     // Déterminer si premium (basé sur le tier réel, pas le body)
     const isPremium = tier === "pro" && limits.coachingQuality === "premium";
     
-    console.log("[Coaching API] DEV_TIER env:", process.env.DEV_TIER);
-    console.log("[Coaching API] Tier détecté:", tier, "isPremium:", isPremium, "coachingQuality:", limits.coachingQuality);
+    logger.debug("[Coaching API] Tier détecté", { 
+      devTier: process.env.DEV_TIER,
+      tier, 
+      isPremium, 
+      coachingQuality: limits.coachingQuality 
+    });
 
-    const winProbData = computeWinProbability(body.matchData.timelineEvents);
+    const winProbData = computeWinProbability(matchData.timelineEvents);
     const report = await generateCoachingReport(
-      body.matchData,
+      matchData,
       winProbData,
       isPremium
     );
     
     // Log pour debug
     if (isPremium) {
-      console.log("[Coaching API] Report premium généré:", {
+      logger.debug("[Coaching API] Report premium généré", {
         hasRootCauses: !!report.rootCauses,
         hasActionPlan: !!report.actionPlan,
         hasDrills: !!report.drills,
@@ -567,7 +653,7 @@ export async function POST(req: NextRequest) {
     // TODO: Incrémenter le compteur de coaching dans la DB
     // await incrementCoachingCount(userId);
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         report,
         isPremium,
@@ -579,8 +665,15 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
+    
+    // Headers rate limiting
+    response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.coaching.maxRequests));
+    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining - 1));
+    response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+    
+    return response;
   } catch (error) {
-    console.error("COACHING ROUTE ERROR", error);
+    logger.error("COACHING ROUTE ERROR", error);
     return NextResponse.json(
       { error: "Failed to generate coaching report" },
       { status: 500 }

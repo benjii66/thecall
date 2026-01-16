@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { GlowOverlay } from "./GlowOverlay";
 import type { MatchListItem } from "@/types/matchList";

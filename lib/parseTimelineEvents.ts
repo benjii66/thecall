@@ -200,7 +200,7 @@ export function extractTimelineEvents(
               second,
               kind: "kill",
               team: "ally",
-              involved,
+              involved: involved ?? false,
               label: killerChampion && victimChampion
                 ? `${killerChampion} killed ${victimChampion}`
                 : victimChampion
@@ -226,7 +226,7 @@ export function extractTimelineEvents(
               second,
               kind: "death",
               team: "ally",
-              involved,
+              involved: involved ?? false,
               label: victimChampion && killerChampion
                 ? `${victimChampion} killed by ${killerChampion}`
                 : killerChampion

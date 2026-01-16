@@ -1,144 +1,127 @@
 // GET /api/matches - Liste des matchs avec pagination intelligente
 import { NextResponse } from "next/server";
-import { riotFetch } from "@/lib/riot";
-import { matchCache } from "@/lib/matchCache";
-import { QUEUE_BY_TYPE, type GameType } from "@/types/gameType";
-import type { RiotMatch } from "@/lib/riotTypes";
+import { getMatchesListController } from "@/lib/controllers/matchController";
 import type { MatchListItem } from "@/types/matchList";
-
-const LIST_TTL_MS = 5 * 60_000;
-const TARGET_MATCHES = 10;
-const IDS_BATCH = 20;
-const MAX_LOOKBACK_PAGES = 6;
-const MATCH_FETCH_DELAY_MS = 70;
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function toListItem(match: RiotMatch, puuid: string): MatchListItem {
-  const me = match.info.participants.find((p) => p.puuid === puuid);
-  const opponent = me
-    ? match.info.participants.find(
-        (p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition
-      )
-    : undefined;
-
-  const durationMin = Math.floor(match.info.gameDuration / 60);
-  const durationSec = String(match.info.gameDuration % 60).padStart(2, "0");
-
-  return {
-    id: match.metadata.matchId,
-    queueId: match.info.queueId,
-
-    champion: me?.championName ?? "Unknown",
-    opponent: opponent?.championName ?? "Unknown",
-    win: Boolean(me?.win),
-    duration: match.info.gameDuration,
-
-    label: `${me?.championName ?? "Unknown"} vs ${
-      opponent?.championName ?? "Unknown"
-    } • ${durationMin}:${durationSec} • ${me?.win ? "Victoire" : "Défaite"}`,
-  };
-}
+import { validatePuuid, validateGameType } from "@/lib/security";
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
+import { logger } from "@/lib/logger";
+import { addApiCacheHeaders } from "@/lib/cacheHeaders";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const puuid = searchParams.get("puuid") ?? process.env.MY_PUUID ?? "";
-  const type = (searchParams.get("type") ?? "all") as GameType;
+  // Vérifier que la clé API est présente
+  if (!process.env.RIOT_API_KEY) {
+    console.error("[MATCHES API] ❌ RIOT_API_KEY manquante - Vérifie ton fichier .env.local");
+    logger.error("[MATCHES API] RIOT_API_KEY manquante");
+    return NextResponse.json(
+      { 
+        matches: [] as MatchListItem[],
+        error: "Configuration serveur: RIOT_API_KEY manquante. Vérifie ton fichier .env.local",
+      },
+      { status: 500 }
+    );
+  }
+  
+  console.log("[MATCHES API] ✅ RIOT_API_KEY présente", { 
+    keyLength: process.env.RIOT_API_KEY.length,
+    keyPrefix: process.env.RIOT_API_KEY.substring(0, 10) + "..."
+  });
 
-  if (!puuid) {
-    return NextResponse.json({ matches: [] as MatchListItem[] }, { status: 200 });
+  // Rate limiting
+  const identifier = getRateLimitIdentifier(req);
+  const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.matches);
+  
+  if (!rateLimit.allowed) {
+    const response = NextResponse.json(
+      { 
+        error: "Rate limit exceeded",
+        message: "Trop de requêtes. Réessaye dans quelques instants.",
+        resetAt: new Date(rateLimit.resetAt).toISOString(),
+      },
+      { status: 429 }
+    );
+    response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.matches.maxRequests));
+    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
+    response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+    response.headers.set("Retry-After", String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)));
+    return response;
   }
 
-  const queues = (QUEUE_BY_TYPE[type] ?? []) as readonly number[];
-  const cacheKey = `${puuid}:${type}`;
+  const { searchParams } = new URL(req.url);
+  const puuidParam = searchParams.get("puuid");
+  const typeParam = searchParams.get("type");
+  
+  // Valider les inputs
+  const validPuuid = puuidParam
+    ? validatePuuid(puuidParam)
+    : validatePuuid(process.env.MY_PUUID || "");
+  
+  const validType = validateGameType(typeParam) ?? "all";
+
+  if (!validPuuid) {
+    logger.error("[MATCHES API] PUUID invalide", undefined, { puuidParam, envPuuid: process.env.MY_PUUID });
+    return NextResponse.json(
+      { 
+        matches: [] as MatchListItem[],
+        error: "PUUID invalide ou manquant",
+      },
+      { status: 200 }
+    );
+  }
 
   try {
-    const entry = await matchCache.withMatchList(cacheKey, async (prev) => {
-      // si on a un cache encore valide, on repart de là
-      const base = prev && prev.expiresAt > Date.now() ? prev : null;
+    logger.debug("[MATCHES API] Début fetch matches", { validPuuid: validPuuid.substring(0, 10) + "...", validType });
+    
+    // Use controller logic
+    const { matches } = await getMatchesListController(validPuuid, validType);
 
-      const data: MatchListItem[] = base?.data ? [...base.data] : [];
-      const seen = new Set(data.map((m) => m.id));
-
-      let cursor = base?.cursor ?? 0;
-      let exhausted = base?.exhausted ?? false;
-
-      // TTL recalculé à la fin
-      let pages = 0;
-
-      while (!exhausted && data.length < TARGET_MATCHES && pages < MAX_LOOKBACK_PAGES) {
-        pages++;
-
-        // 1) fetch IDs batch
-        const ids = await riotFetch<string[]>(
-          `/lol/match/v5/matches/by-puuid/${puuid}/ids?start=${cursor}&count=${IDS_BATCH}`,
-          "europe"
-        );
-
-        if (!ids.length) {
-          exhausted = true;
-          break;
-        }
-
-        cursor += ids.length;
-
-        // 2) fetch match details progressivement
-        for (const id of ids) {
-          if (seen.has(id)) continue;
-
-          // throttle soft anti-429
-          await sleep(MATCH_FETCH_DELAY_MS);
-
-          const match = await matchCache.withMatch(id, async () => {
-            return riotFetch<RiotMatch>(`/lol/match/v5/matches/${id}`, "europe");
-          });
-
-          // 3) filtrage queue
-          if (queues.length && !queues.includes(match.info.queueId)) continue;
-
-          const item = toListItem(match, puuid);
-          data.push(item);
-          seen.add(id);
-
-          if (data.length >= TARGET_MATCHES) break;
-        }
-      }
-
-      return {
-        data,
-        cursor,
-        exhausted,
-        expiresAt: Date.now() + LIST_TTL_MS,
-      };
+    logger.debug(`[MATCHES API] Réponse finale`, { 
+      matchesCount: matches.length,
+      matches: matches.slice(0, 2).map(m => ({ id: m.id, champion: m.champion }))
     });
 
-    return NextResponse.json({ matches: entry.data }, { status: 200 });
+    let response = NextResponse.json({ matches }, { status: 200 }) as NextResponse<{ matches: MatchListItem[] }>;
+    
+    // Ajouter les headers de rate limiting
+    response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.matches.maxRequests));
+    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining - 1));
+    response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+    
+    // Ajouter les headers de cache (2 minutes pour les listes de matchs)
+    response = addApiCacheHeaders(response, 120) as NextResponse<{ matches: MatchListItem[] }>;
+    
+    return response;
   } catch (err) {
-    console.error("MATCH LIST ROUTE ERROR", err);
+    // Log console
+    console.error("[MATCHES API] ❌ ERREUR:", err);
     
     const error = err as Error & { status?: number; isRiotError?: boolean };
     
     // Si c'est une erreur Riot API, on renvoie un message d'erreur clair
     if (error.isRiotError) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
           matches: [] as MatchListItem[],
           error: error.message,
           errorCode: error.status,
         },
-        { status: 200 } // On garde 200 pour ne pas casser la page, mais on inclut l'erreur
+        { status: 200 } 
       );
+      response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.matches.maxRequests));
+      response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
+      response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+      return response;
     }
     
-    // En dev, on préfère renvoyer un truc safe plutôt que casser la page
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         matches: [] as MatchListItem[],
-        error: "Erreur lors de la récupération des matchs",
+        error: error.message || "Erreur lors de la récupération des matchs",
       },
       { status: 200 }
     );
+    response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.matches.maxRequests));
+    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
+    response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+    return response;
   }
 }

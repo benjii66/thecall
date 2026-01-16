@@ -36,7 +36,7 @@ export default function SubscriptionPage() {
   const [showDowngradeConfirm, setShowDowngradeConfirm] = useState(false);
   const [showUpgradeConfirm, setShowUpgradeConfirm] = useState(false);
   
-  const loadSubscription = () => {
+  useEffect(() => {
     // En mode dev, utiliser localStorage directement
     const tier = getClientTier();
     setSubscription({
@@ -46,14 +46,16 @@ export default function SubscriptionPage() {
       cancelAtPeriodEnd: false,
     });
     setIsLoading(false);
-  };
-
-  useEffect(() => {
-    loadSubscription();
     
     // Écouter les changements de tier depuis d'autres composants
     const handleTierChange = () => {
-      loadSubscription();
+      const newTier = getClientTier();
+      setSubscription({
+        tier: newTier,
+        isActive: newTier === "pro",
+        renewalDate: newTier === "pro" ? getNextMonth(language) : undefined,
+        cancelAtPeriodEnd: false,
+      });
     };
     window.addEventListener("tierChanged", handleTierChange);
     
@@ -102,7 +104,13 @@ export default function SubscriptionPage() {
     try {
       const result = await switchTier("free");
       if (result.success) {
-        loadSubscription();
+        const newTier = getClientTier();
+        setSubscription({
+          tier: newTier,
+          isActive: newTier === "pro",
+          renewalDate: newTier === "pro" ? getNextMonth(language) : undefined,
+          cancelAtPeriodEnd: false,
+        });
         setShowDowngradeConfirm(false);
         // Recharger la page pour appliquer les changements
         setTimeout(() => {
@@ -121,7 +129,13 @@ export default function SubscriptionPage() {
     try {
       const result = await switchTier("pro");
       if (result.success) {
-        loadSubscription();
+        const newTier = getClientTier();
+        setSubscription({
+          tier: newTier,
+          isActive: newTier === "pro",
+          renewalDate: newTier === "pro" ? getNextMonth(language) : undefined,
+          cancelAtPeriodEnd: false,
+        });
         setShowUpgradeConfirm(false);
         // Recharger la page pour appliquer les changements
         setTimeout(() => {

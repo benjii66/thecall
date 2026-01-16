@@ -45,7 +45,7 @@ export async function switchTier(tier: "free" | "pro"): Promise<{ success: boole
       setClientTier(tier);
     }
     return data;
-  } catch (error) {
+  } catch {
     return {
       success: false,
       message: "Erreur lors du changement de tier",

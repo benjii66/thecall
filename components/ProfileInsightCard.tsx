@@ -1,12 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Target, AlertCircle, CheckCircle } from "lucide-react";
+import { Target, AlertCircle, CheckCircle } from "lucide-react";
 import type { PlayerProfile } from "@/types/profile";
+import { useLanguage } from "@/lib/language";
 
 type Insight = PlayerProfile["insights"][number];
 
 export function ProfileInsightCard({ insight }: { insight: Insight }) {
+  const { t } = useLanguage();
+  
   const icons = {
     strength: CheckCircle,
     weakness: AlertCircle,
@@ -28,6 +31,12 @@ export function ProfileInsightCard({ insight }: { insight: Insight }) {
   const Icon = icons[insight.type];
   const colorClass = colors[insight.type];
   const textColor = textColors[insight.type];
+  
+  const typeLabels = {
+    strength: t("profile.insight.strength"),
+    weakness: t("profile.insight.weakness"),
+    recommendation: t("profile.insight.recommendation"),
+  };
 
   return (
     <motion.div
@@ -44,16 +53,12 @@ export function ProfileInsightCard({ insight }: { insight: Insight }) {
           <div className={`flex items-center gap-2 ${textColor}`}>
             <Icon size={18} />
             <span className="text-xs font-semibold uppercase tracking-[0.16em]">
-              {insight.type === "strength"
-                ? "Point fort"
-                : insight.type === "weakness"
-                ? "À améliorer"
-                : "Recommandation"}
+              {typeLabels[insight.type]}
             </span>
           </div>
           {insight.priority === "high" && (
             <span className="rounded-full border border-red-400/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-300">
-              Priorité
+              {t("profile.insight.priority")}
             </span>
           )}
         </div>

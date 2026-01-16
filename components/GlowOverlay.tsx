@@ -1,9 +1,31 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 
 // Overlay de glow LoL-style pour les transitions importantes
 export function GlowOverlay({ show }: { show: boolean }) {
+  // Générer les positions aléatoires une seule fois avec useMemo
+  // Note: Math.random() dans useMemo est acceptable car il ne s'exécute qu'une fois au montage
+  const [particles, setParticles] = useState<Array<{
+    initialX: number;
+    initialY: number;
+    animateX: number;
+    animateY: number;
+  }>>([]);
+
+  useEffect(() => {
+    // eslint-disable-next-line
+    setParticles(
+      [...Array(6)].map(() => ({
+        initialX: 50 + (Math.random() - 0.5) * 20,
+        initialY: 50 + (Math.random() - 0.5) * 20,
+        animateX: 50 + (Math.random() - 0.5) * 40,
+        animateY: 50 + (Math.random() - 0.5) * 40,
+      }))
+    );
+  }, []);
+
   if (!show) return null;
 
   return (
@@ -35,18 +57,18 @@ export function GlowOverlay({ show }: { show: boolean }) {
         animate={{ opacity: [0, 1, 0] }}
         transition={{ duration: 0.6, delay: 0.1 }}
       >
-        {[...Array(6)].map((_, i) => (
+        {particles.map((particle, i) => (
           <motion.div
             key={i}
             className="absolute h-1 w-1 rounded-full bg-cyan-400"
             initial={{
-              x: `${50 + (Math.random() - 0.5) * 20}%`,
-              y: `${50 + (Math.random() - 0.5) * 20}%`,
+              x: `${particle.initialX}%`,
+              y: `${particle.initialY}%`,
               opacity: 0,
             }}
             animate={{
-              x: `${50 + (Math.random() - 0.5) * 40}%`,
-              y: `${50 + (Math.random() - 0.5) * 40}%`,
+              x: `${particle.animateX}%`,
+              y: `${particle.animateY}%`,
               opacity: [0, 0.8, 0],
               scale: [0, 1.5, 0],
             }}

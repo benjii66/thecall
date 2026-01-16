@@ -1,7 +1,7 @@
 // Middleware Next.js pour vérifier le tier et gérer les restrictions
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getUserTier, hasFeatureAccess } from "@/lib/tier";
+import { hasFeatureAccess } from "@/lib/tier";
 import type { TierLimits } from "@/types/pricing";
 
 export function middleware(request: NextRequest) {

@@ -1,5 +1,6 @@
 // app/profile/loading.tsx
 import { NavbarWrapper } from "@/components/NavbarWrapper";
+import { Skeleton } from "@/components/SkeletonLoader";
 
 export default function ProfileLoading() {
   return (
@@ -12,18 +13,18 @@ export default function ProfileLoading() {
       </div>
       <section className="relative mx-auto max-w-6xl px-6 pb-16 pt-10">
         {/* Hero skeleton */}
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 animate-pulse">
-          <div className="h-9 w-48 bg-white/10 rounded-lg mb-4" />
-          <div className="h-6 w-64 bg-white/5 rounded-lg" />
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8">
+          <Skeleton variant="text" width="48" height={36} className="mb-4" />
+          <Skeleton variant="text" width="64" height={24} />
         </div>
 
         {/* Playstyle skeleton */}
         <div className="mt-10 space-y-4">
-          <div className="h-6 w-40 bg-white/10 rounded-lg animate-pulse" />
+          <Skeleton variant="text" width="40" height={24} />
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8">
             <div className="grid gap-6 md:grid-cols-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-32 bg-white/5 rounded-2xl animate-pulse" />
+                <Skeleton key={i} variant="rectangular" width="100%" height={128} />
               ))}
             </div>
           </div>
@@ -31,10 +32,14 @@ export default function ProfileLoading() {
 
         {/* Insights skeleton */}
         <div className="mt-10 space-y-4">
-          <div className="h-6 w-40 bg-white/10 rounded-lg animate-pulse" />
+          <Skeleton variant="text" width="40" height={24} />
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-48 bg-white/5 rounded-2xl animate-pulse" />
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="rounded-2xl border border-white/10 bg-black/40 p-6">
+                <Skeleton variant="text" width="60%" height={20} className="mb-2" />
+                <Skeleton variant="text" width="100%" height={16} className="mb-1" />
+                <Skeleton variant="text" width="80%" height={16} />
+              </div>
             ))}
           </div>
         </div>

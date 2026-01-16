@@ -156,13 +156,18 @@ function UserMenu() {
   const router = useRouter();
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    // En mode dev, utiliser localStorage directement
-    const tier = getClientTier();
-    setTier(tier);
+    // Initialiser mounted de manière asynchrone pour éviter les cascades de render
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    
+    // Initialiser tier et écouter les changements
+    const initializeTier = () => {
+      const tier = getClientTier();
+      setTier(tier);
+    };
+    
+    initializeTier();
     
     // Écouter les changements de tier (pour recharger quand on change)
     const handleStorageChange = () => {
@@ -175,6 +180,7 @@ function UserMenu() {
     window.addEventListener("tierChanged", handleStorageChange);
     
     return () => {
+      clearTimeout(timer);
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("tierChanged", handleStorageChange);
     };
@@ -219,7 +225,7 @@ function UserMenu() {
   const handleLogout = () => {
     setIsOpen(false);
     // TODO: Implémenter la déconnexion
-    console.log("Déconnexion...");
+    // logger.info("Déconnexion...");
   };
 
   const isFree = tier === "free";

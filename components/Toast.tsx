@@ -13,9 +13,7 @@ export type Toast = {
   duration?: number;
 };
 
-type ToastContextType = {
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
-};
+// ToastContextType défini mais non utilisé directement (utilisé via le contexte)
 
 // Simple toast manager (pas de Context pour éviter la complexité)
 let toastListeners: Array<(toast: Toast) => void> = [];

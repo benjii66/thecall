@@ -1,6 +1,6 @@
 // app/match/loading.tsx
 import { NavbarWrapper } from "@/components/NavbarWrapper";
-import { MatchListSkeleton } from "@/components/MatchListSkeleton";
+import { MatchListSkeleton, Skeleton } from "@/components/SkeletonLoader";
 
 export default function MatchLoading() {
   return (
@@ -13,13 +13,13 @@ export default function MatchLoading() {
       </div>
       <section className="relative mx-auto max-w-4xl px-6 pb-16 pt-10">
         <div className="mb-8">
-          <div className="h-9 w-48 animate-pulse rounded-lg bg-white/10" />
-          <div className="mt-2 h-5 w-64 animate-pulse rounded-lg bg-white/5" />
+          <Skeleton variant="text" width="48" height={36} />
+          <Skeleton variant="text" width="64" height={20} className="mt-2" />
         </div>
         <div className="rounded-2xl border border-white/10 bg-black/30 p-2 mb-6">
-          <div className="h-10 w-40 animate-pulse rounded-lg bg-white/10" />
+          <Skeleton variant="rectangular" width="40" height={40} />
         </div>
-        <MatchListSkeleton />
+        <MatchListSkeleton count={5} />
       </section>
     </main>
   );

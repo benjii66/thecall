@@ -17,8 +17,9 @@ export function WinProbabilityChart({ data }: { data: WinProbPoint[] }) {
   );
 
   // Trouver le point le plus haut et le plus bas pour les gradients dynamiques
-  const maxProb = Math.max(...data.map((p) => p.probability));
-  const minProb = Math.min(...data.map((p) => p.probability));
+  // maxProb et minProb réservés pour futures améliorations de gradient
+  // const maxProb = Math.max(...data.map((p) => p.probability));
+  // const minProb = Math.min(...data.map((p) => p.probability));
   const isWinning = last.probability > 50;
 
   return (

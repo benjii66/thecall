@@ -3,12 +3,15 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import type { RoleStats } from "@/types/profile";
+import { useLanguage } from "@/lib/language";
 
 const DD_VERSION = "14.18.1";
 const champIcon = (name: string) =>
   `https://ddragon.leagueoflegends.com/cdn/${DD_VERSION}/img/champion/${name}.png`;
 
 export function ProfileStats({ roleStats }: { roleStats: RoleStats[] }) {
+  const { t } = useLanguage();
+  
   return (
     <div className="space-y-4">
       {roleStats.map((role, i) => (
@@ -23,11 +26,11 @@ export function ProfileStats({ roleStats }: { roleStats: RoleStats[] }) {
             <h3 className="text-lg font-semibold">{role.role}</h3>
             <div className="flex items-center gap-4 text-sm">
               <div>
-                <span className="text-white/50">Games: </span>
+                <span className="text-white/50">{t("profile.stats.games")}: </span>
                 <span className="font-semibold text-white/90">{role.games}</span>
               </div>
               <div>
-                <span className="text-white/50">Win rate: </span>
+                <span className="text-white/50">{t("profile.stats.winRate")}: </span>
                 <span
                   className={`font-semibold ${
                     role.winRate >= 50
@@ -45,15 +48,15 @@ export function ProfileStats({ roleStats }: { roleStats: RoleStats[] }) {
 
           <div className="grid gap-4 md:grid-cols-3 mb-4">
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/50 mb-1">KDA moyen</p>
+              <p className="text-xs text-white/50 mb-1">{t("profile.stats.avgKDA")}</p>
               <p className="text-sm font-semibold text-white/90">{role.avgKDA}</p>
             </div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/50 mb-1">KP moyen</p>
+              <p className="text-xs text-white/50 mb-1">{t("profile.stats.avgKP")}</p>
               <p className="text-sm font-semibold text-white/90">{role.avgKP}%</p>
             </div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/50 mb-1">Gold moyen</p>
+              <p className="text-xs text-white/50 mb-1">{t("profile.stats.avgGold")}</p>
               <p className="text-sm font-semibold text-white/90">
                 {role.avgGold.toLocaleString()}
               </p>
@@ -62,7 +65,7 @@ export function ProfileStats({ roleStats }: { roleStats: RoleStats[] }) {
 
           {role.mostPlayedChampions.length > 0 && (
             <div>
-              <p className="text-xs text-white/50 mb-2">Champions les plus joués</p>
+              <p className="text-xs text-white/50 mb-2">{t("profile.stats.mostPlayedChampions")}</p>
               <div className="flex gap-2">
                 {role.mostPlayedChampions.map((champ) => (
                   <div

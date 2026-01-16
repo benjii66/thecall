@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AnimatedSection, AnimatedItem } from "./AnimatedSection";
 import { CoachingQuotaBadge } from "./CoachingQuotaBadge";
 import { PaywallSections } from "./PaywallSection";
 import { ConversionBanner } from "./ConversionBanner";
 import type { CoachingReport } from "@/types/coaching";
 import { getUserTier, canDoCoaching } from "@/lib/tier";
+import { useLanguage } from "@/lib/language";
 
 interface CoachTabProps {
+  matchId: string;
   coachingReport: CoachingReport | null;
-  matchData: unknown; // MatchPageData
   auditPositive: string[];
   auditNegative: string[];
   initialQuota?: { remaining: number; limit: number } | null;
@@ -18,13 +19,17 @@ interface CoachTabProps {
 }
 
 export function CoachTab({
-  coachingReport,
-  matchData,
+  matchId,
+  coachingReport: initialReport,
   auditPositive,
   auditNegative,
   initialQuota,
   initialTier,
 }: CoachTabProps) {
+  const [report, setReport] = useState<CoachingReport | null>(initialReport);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [tier, setTier] = useState<"free" | "pro">(initialTier || "free");
   const [quota, setQuota] = useState<{
     allowed: boolean;
@@ -41,6 +46,37 @@ export function CoachTab({
     return { allowed: true, remaining: 5, limit: 5 };
   });
   const [showFirstBanner, setShowFirstBanner] = useState(false);
+  const { t } = useLanguage();
+
+  const hasFetched = useRef(false);
+
+  useEffect(() => {
+    // Si pas de rapport initial, on le charge
+    if (!initialReport && matchId && !hasFetched.current) {
+      hasFetched.current = true;
+      // eslint-disable-next-line
+      setLoading(true);
+      fetch("/api/coaching", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId }),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error("Failed to load coaching");
+          const data = await res.json();
+          if (data.report) {
+            setReport(data.report);
+            if (data.quota) setQuota(data.quota);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          setError("Impossible de charger le coaching.");
+          hasFetched.current = false; // Permettre retry si erreur?
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [matchId, initialReport]);
 
   useEffect(() => {
     // Récupérer le tier depuis l'API (pour avoir accès à DEV_TIER côté serveur)
@@ -82,10 +118,10 @@ export function CoachTab({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold tracking-tight">
-              Coaching TheCall
+              {t("coaching.title")}
             </h2>
             <p className="mt-1 text-sm text-white/55">
-              Analyse post-match avec insights personnalisés
+              {t("coaching.subtitle")}
             </p>
           </div>
         </div>
@@ -104,60 +140,73 @@ export function CoachTab({
             onDismiss={() => setShowFirstBanner(false)}
           />
         )}
+        {/* Message d'erreur */}
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-center text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
         {!isPro && !hasQuota && (
           <ConversionBanner variant="quota-exhausted" />
         )}
 
-        {/* Coaching basique (gratuit) - toujours visible si coachingReport existe */}
-        {coachingReport && hasQuota && (
+        {/* Coaching basique (gratuit) - toujours visible si report existe */}
+        {loading && (
+           <div className="mt-8 flex justify-center">
+             <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/10 border-t-cyan-400" />
+           </div>
+        )}
+        
+        {report && hasQuota && (
           <div className="mt-4 space-y-6">
             {/* Turning Point, Focus, Action - ACCESSIBLE GRATUITEMENT */}
-            {(coachingReport.turningPoint ||
-              coachingReport.focus ||
-              coachingReport.action) && (
+            {(report.turningPoint ||
+              report.focus ||
+              report.action) && (
               <div className="grid gap-4 md:grid-cols-3">
-                {coachingReport.turningPoint && (
+                {report.turningPoint && (
                   <AnimatedItem>
                     <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
-                        {coachingReport.turningPoint.title}
+                        {t("coaching.turningPoint")}
                       </div>
                       <p className="text-sm text-white/90">
-                        {coachingReport.turningPoint.timestamp && (
+                        {report.turningPoint.timestamp && (
                           <span className="font-semibold">
-                            {coachingReport.turningPoint.timestamp}
+                            {report.turningPoint.timestamp}
                           </span>
                         )}{" "}
-                        — {coachingReport.turningPoint.description}
+                        — {report.turningPoint.description}
                       </p>
-                      {coachingReport.turningPoint.impact && (
+                      {report.turningPoint.impact && (
                         <p className="mt-1 text-xs text-white/60">
-                          Impact: {coachingReport.turningPoint.impact}
+                          {t("coaching.impact")} {report.turningPoint.impact}
                         </p>
                       )}
                     </div>
                   </AnimatedItem>
                 )}
-                {coachingReport.focus && (
+                {report.focus && (
                   <AnimatedItem>
                     <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-purple-300">
-                        {coachingReport.focus.title}
+                        {t("coaching.focus")}
                       </div>
                       <p className="text-sm text-white/90">
-                        {coachingReport.focus.description}
+                        {report.focus.description}
                       </p>
                     </div>
                   </AnimatedItem>
                 )}
-                {coachingReport.action && (
+                {report.action && (
                   <AnimatedItem>
                     <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">
-                        {coachingReport.action.title}
+                        {t("coaching.action")}
                       </div>
                       <p className="text-sm text-white/90">
-                        {coachingReport.action.description}
+                        {report.action.description}
                       </p>
                     </div>
                   </AnimatedItem>
@@ -170,7 +219,7 @@ export function CoachTab({
               <AnimatedItem>
                 <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-300">
-                    Objectifs de progression
+                    {t("coaching.progressionObjectives")}
                   </h3>
                   <ul className="space-y-3">
                     {auditNegative.slice(0, isPro ? auditNegative.length : 3).map((item, i) => (
@@ -187,7 +236,7 @@ export function CoachTab({
                   </ul>
                   {!isPro && auditNegative.length > 3 && (
                     <p className="mt-3 text-xs text-white/50 italic">
-                      +{auditNegative.length - 3} autres objectifs disponibles avec Pro
+                      {t("coaching.moreObjectives", { count: String(auditNegative.length - 3) })}
                     </p>
                   )}
                 </div>
@@ -198,25 +247,25 @@ export function CoachTab({
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <AnimatedItem>
                 <AuditCard 
-                  title="Points forts" 
+                  title={t("coaching.strengths")} 
                   tone="good" 
                   items={isPro ? auditPositive : auditPositive.slice(0, 3)} 
                 />
                 {!isPro && auditPositive.length > 3 && (
                   <p className="mt-2 text-xs text-white/50 italic text-center">
-                    +{auditPositive.length - 3} autres points forts avec Pro
+                    {t("coaching.moreStrengths", { count: String(auditPositive.length - 3) })}
                   </p>
                 )}
               </AnimatedItem>
               <AnimatedItem>
                 <AuditCard
-                  title="Points à améliorer"
+                  title={t("coaching.weaknesses")}
                   tone="bad"
                   items={isPro ? auditNegative : auditNegative.slice(0, 3)}
                 />
                 {!isPro && auditNegative.length > 3 && (
                   <p className="mt-2 text-xs text-white/50 italic text-center">
-                    +{auditNegative.length - 3} autres points à améliorer avec Pro
+                    {t("coaching.moreWeaknesses", { count: String(auditNegative.length - 3) })}
                   </p>
                 )}
               </AnimatedItem>
@@ -224,18 +273,18 @@ export function CoachTab({
           </div>
         )}
 
-        {/* Sections premium (UNIQUEMENT pour tier Pro) */}
-        {isPro && coachingReport && (coachingReport.rootCauses || coachingReport.actionPlan || coachingReport.drills) && (
+            {/* Sections premium (UNIQUEMENT pour tier Pro) */}
+        {isPro && report && (report.rootCauses || report.actionPlan || report.drills) && (
           <div className="mt-6 space-y-6">
             {/* Causes racines */}
-            {coachingReport.rootCauses && (
+            {report.rootCauses && (
               <AnimatedItem>
                 <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-violet-300">
-                    {coachingReport.rootCauses.title}
+                    {t("coaching.rootCauses")}
                   </h3>
                   <div className="space-y-4">
-                    {coachingReport.rootCauses.causes.map((cause, i) => (
+                    {report.rootCauses.causes.map((cause, i) => (
                       <div
                         key={i}
                         className="rounded-lg border border-white/10 bg-black/20 p-4"
@@ -266,14 +315,14 @@ export function CoachTab({
             )}
 
             {/* Plan d'action */}
-            {coachingReport.actionPlan && (
+            {report.actionPlan && (
               <AnimatedItem>
                 <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-300">
-                    {coachingReport.actionPlan.title}
+                    {t("coaching.actionPlan")}
                   </h3>
                   <div className="space-y-4">
-                    {coachingReport.actionPlan.rules.map((rule, i) => (
+                    {report.actionPlan.rules.map((rule, i) => (
                       <div
                         key={i}
                         className="rounded-lg border border-white/10 bg-black/20 p-4"
@@ -291,13 +340,17 @@ export function CoachTab({
                                 : "bg-red-500/20 text-red-300"
                             }`}
                           >
-                            {rule.phase}
+                            {rule.phase === "early" 
+                              ? t("coaching.phase.early")
+                              : rule.phase === "mid"
+                              ? t("coaching.phase.mid")
+                              : t("coaching.phase.late")}
                           </span>
                         </div>
                         {rule.antiErrors.length > 0 && (
                           <div className="mt-2">
                             <p className="mb-1 text-xs font-medium text-white/50">
-                              Erreurs à éviter :
+                              {t("coaching.errorsToAvoid")}
                             </p>
                             <ul className="space-y-1">
                               {rule.antiErrors.map((error, j) => (
@@ -320,14 +373,14 @@ export function CoachTab({
             )}
 
             {/* Drills / exercices */}
-            {coachingReport.drills && (
+            {report.drills && (
               <AnimatedItem>
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-emerald-300">
-                    {coachingReport.drills.title}
+                    {t("coaching.drills")}
                   </h3>
                   <div className="grid gap-4 md:grid-cols-2">
-                    {coachingReport.drills.exercises.map((exercise, i) => (
+                    {report.drills.exercises.map((exercise, i) => (
                       <div
                         key={i}
                         className="rounded-lg border border-white/10 bg-black/20 p-4"
@@ -337,7 +390,7 @@ export function CoachTab({
                             {exercise.exercise}
                           </span>
                           <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300">
-                            {exercise.games} games
+                            {exercise.games} {t("coaching.games")}
                           </span>
                         </div>
                         <p className="text-sm text-white/70">{exercise.description}</p>
@@ -356,13 +409,13 @@ export function CoachTab({
         )}
 
         {/* Message si pas de coaching report et pas de quota */}
-        {!coachingReport && !hasQuota && (
+        {!report && !hasQuota && (
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
             <p className="text-lg font-semibold text-white/90">
-              Quota coaching épuisé
+              {t("coaching.quotaExhausted")}
             </p>
             <p className="mt-2 text-sm text-white/60">
-              Upgrade Pro pour coaching illimité + profil complet
+              {t("coaching.quotaExhaustedDesc")}
             </p>
           </div>
         )}

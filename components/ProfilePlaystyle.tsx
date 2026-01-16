@@ -3,27 +3,30 @@
 import { motion } from "framer-motion";
 import { Zap, Target, Users } from "lucide-react";
 import type { PlayerProfile } from "@/types/profile";
+import { useLanguage } from "@/lib/language";
 
 export function ProfilePlaystyle({
   playstyle,
 }: {
   playstyle: PlayerProfile["playstyle"];
 }) {
+  const { t } = useLanguage();
+  
   const indicators = [
     {
-      label: "Agression",
+      label: t("profile.playstyle.aggression"),
       value: playstyle.aggression,
       icon: Zap,
       color: playstyle.aggression === "high" ? "red" : playstyle.aggression === "medium" ? "yellow" : "green",
     },
     {
-      label: "Focus objectifs",
+      label: t("profile.playstyle.objectiveFocus"),
       value: playstyle.objectiveFocus,
       icon: Target,
       color: playstyle.objectiveFocus === "high" ? "green" : playstyle.objectiveFocus === "medium" ? "yellow" : "red",
     },
     {
-      label: "Présence team fights",
+      label: t("profile.playstyle.teamFightPresence"),
       value: playstyle.teamFightPresence,
       icon: Users,
       color: playstyle.teamFightPresence === "high" ? "green" : playstyle.teamFightPresence === "medium" ? "yellow" : "red",
@@ -85,7 +88,7 @@ export function ProfilePlaystyle({
               </div>
 
               <p className="mt-2 text-xs font-medium opacity-80">
-                {ind.value === "high" ? "Élevé" : ind.value === "medium" ? "Moyen" : "Faible"}
+                {ind.value === "high" ? t("profile.playstyle.high") : ind.value === "medium" ? t("profile.playstyle.medium") : t("profile.playstyle.low")}
               </p>
             </motion.div>
           );

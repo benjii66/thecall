@@ -30,10 +30,12 @@ export function MatchBuildSection({
     setIsOpen(!isOpen);
   };
 
+  const { t } = useLanguage();
+  
   return (
     <section className="mt-10 rounded-2xl border border-white/10 bg-black/5 p-4 sm:p-6">
       <h3 className="mb-4 sm:mb-6 text-sm font-semibold uppercase tracking-wide text-white/60">
-        Builds dans la partie
+        {t("build.title")}
       </h3>
 
       {/* Container unifié avec séparation visuelle */}
@@ -170,6 +172,7 @@ function BuildContent({
                   whileHover={{ scale: 1.1, zIndex: 10 }}
                   className="group relative"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={iconUrl}
                     alt={itemName}
@@ -217,6 +220,7 @@ function BuildContent({
                 whileHover={{ scale: 1.15, zIndex: 10 }}
                 className="group relative"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={runeIcon(r)}
                   alt={runeName}

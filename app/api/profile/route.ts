@@ -1,10 +1,12 @@
 // app/api/profile/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { riotFetch } from "@/lib/riot";
-import { matchCache } from "@/lib/matchCache";
+import { getRawMatch, getRawTimeline } from "@/lib/controllers/matchController";
 import type { RiotMatch, RiotTimeline } from "@/lib/riotTypes";
 import type { PlayerProfile, RoleStats } from "@/types/profile";
 import { extractTimelineEvents } from "@/lib/parseTimelineEvents";
+import { logger } from "@/lib/logger";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -54,76 +56,88 @@ async function analyzeAllMatches(puuid: string): Promise<PlayerProfile> {
     };
   }> = [];
 
-  // Utiliser UNIQUEMENT les matchs en cache (pas de fetch)
-  // L'utilisateur doit d'abord visiter /match pour charger les matchs en cache
-  // Ça évite de dépasser les rate limits Riot (20/10s, 100/2min)
+  // Utiliser le controller pour récupérer les matchs (Redis ou API)
+  // On limite le nombre de matchs à analyser pour éviter les timeouts et rate limits
+  const matchesToAnalyze = matchIds.slice(0, 20); 
+
+  // Traitement par lots pour contrôler la concurrence
+  const CHUNK_SIZE = 5;
   
-  for (const id of matchIds) {
-    try {
-      // Vérifier le cache uniquement (pas de fetch)
-      const cachedMatch = matchCache.getMatch(id);
-      const cachedTimeline = matchCache.getTimeline(id);
-      
-      // Si le match n'est pas en cache, on le skip
-      if (!cachedMatch) {
-        console.log(`[profile] Skipping ${id} (not in cache, visit /match first)`);
-        continue;
-      }
-      
-      const match = cachedMatch;
-      const timeline = cachedTimeline ?? null; // Timeline optionnel
+  for (let i = 0; i < matchesToAnalyze.length; i += CHUNK_SIZE) {
+    const chunk = matchesToAnalyze.slice(i, i + CHUNK_SIZE);
+    
+    await Promise.all(
+      chunk.map(async (id) => {
+        try {
+          const match = await getRawMatch(id);
+          // Timeline est optionnelle pour le profil de base mais utile pour les stats avancées
+          // On essaie de la récupérer mais on continue sans si erreur
+          let timeline: RiotTimeline | null = null;
+          try {
+             timeline = await getRawTimeline(id);
+          } catch (e) {
+             logger.warn(`Failed to fetch timeline for ${id}`, { error: e });
+          }
 
-      const participants = match.info.participants as Array<
-        (typeof match.info.participants)[number] & { individualPosition?: string }
-      >;
+          const participants = match.info.participants as Array<
+            (typeof match.info.participants)[number] & { individualPosition?: string }
+          >;
 
-      const meRaw = participants.find((p) => p.puuid === puuid);
-      if (!meRaw) continue;
+          const meRaw = participants.find((p) => p.puuid === puuid);
+          if (!meRaw) return;
 
-      const myTeamId = meRaw.teamId;
-      const ally = participants.filter((p) => p.teamId === myTeamId);
-      const allyKills = ally.reduce((sum, p) => sum + safeNumber(p.kills), 0);
-      const myKP =
-        allyKills > 0
-          ? Math.round(
-              ((safeNumber(meRaw.kills) + safeNumber(meRaw.assists)) /
-                allyKills) *
-                100
-            )
-          : 0;
+          const myTeamId = meRaw.teamId;
+          const ally = participants.filter((p) => p.teamId === myTeamId);
+          const allyKills = ally.reduce((sum, p) => sum + safeNumber(p.kills), 0);
+          const myKP =
+            allyKills > 0
+              ? Math.round(
+                  ((safeNumber(meRaw.kills) + safeNumber(meRaw.assists)) /
+                    allyKills) *
+                    100
+                )
+              : 0;
 
-      matches.push({
-        match,
-        timeline,
-        me: {
-          role: roleLabel(meRaw.teamPosition || meRaw.individualPosition || ""),
-          champion: meRaw.championName,
-          win: Boolean(meRaw.win),
-          kda: formatKDA(
-            safeNumber(meRaw.kills),
-            safeNumber(meRaw.deaths),
-            safeNumber(meRaw.assists)
-          ),
-          k: safeNumber(meRaw.kills),
-          d: safeNumber(meRaw.deaths),
-          a: safeNumber(meRaw.assists),
-          kp: myKP,
-          gold: safeNumber(meRaw.goldEarned),
-        },
-      });
-    } catch (err) {
-      console.error(`Error loading match ${id}:`, err);
-      continue;
-    }
+          matches.push({
+            match,
+            timeline: timeline ?? undefined,
+            me: {
+              role: roleLabel(meRaw.teamPosition || meRaw.individualPosition || ""),
+              champion: meRaw.championName,
+              win: Boolean(meRaw.win),
+              kda: formatKDA(
+                safeNumber(meRaw.kills),
+                safeNumber(meRaw.deaths),
+                safeNumber(meRaw.assists)
+              ),
+              k: safeNumber(meRaw.kills),
+              d: safeNumber(meRaw.deaths),
+              a: safeNumber(meRaw.assists),
+              kp: myKP,
+              gold: safeNumber(meRaw.goldEarned),
+            },
+          });
+        } catch (err) {
+          logger.warn(`Error loading match ${id} for profile`, { error: err });
+        }
+      })
+    );
   }
 
   if (!matches.length) {
-    throw new Error(
-      "Aucun match en cache. Visite d'abord /match pour charger tes matchs, puis reviens sur /profile."
-    );
+    // Si vraiment aucun match n'a pu être chargé (API error ou nouveau compte)
+    return {
+        totalGames: 0,
+        overallWinRate: 0,
+        mainRole: "—",
+        roleStats: [],
+        playstyle: { aggression: "medium", objectiveFocus: "medium", teamFightPresence: "medium", description: "Pas assez de données." },
+        insights: [],
+        trends: { recentWinRate: 0, recentGames: 0, improving: false }
+    };
   }
-  
-  console.log(`[profile] Analysing ${matches.length} matches from cache (no API calls)`);
+
+  logger.debug(`[profile] Analysing ${matches.length} matches`);
 
   // Calculer les stats par rôle
   // Type intermédiaire pour la construction des stats
@@ -210,7 +224,7 @@ async function analyzeAllMatches(puuid: string): Promise<PlayerProfile> {
   let totalDeaths = 0;
   let totalObjectives = 0;
   let totalKP = 0;
-  let totalGames = matches.length;
+  const totalGames = matches.length;
 
   for (const { me, timeline, match } of matches) {
     totalDeaths += me.d;
@@ -415,7 +429,7 @@ Réponds UNIQUEMENT avec le JSON, pas de texte avant/après.`;
 
     return JSON.parse(jsonMatch[0]) as PlayerProfile["insights"];
   } catch (error) {
-    console.error("Profile insights error:", error);
+    logger.error("Profile insights error", error);
     return generateHeuristicInsights(
       roleStats,
       mainRole,
@@ -502,6 +516,26 @@ function generateHeuristicInsights(
 }
 
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const identifier = getRateLimitIdentifier(req);
+  const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.default);
+  
+  if (!rateLimit.allowed) {
+    const response = NextResponse.json(
+      { 
+        error: "Rate limit exceeded",
+        message: "Trop de requêtes. Réessaye dans quelques instants.",
+        resetAt: new Date(rateLimit.resetAt).toISOString(),
+      },
+      { status: 429 }
+    );
+    response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.default.maxRequests));
+    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
+    response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+    response.headers.set("Retry-After", String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)));
+    return response;
+  }
+
   const { searchParams } = new URL(req.url);
   const puuid =
     searchParams.get("puuid") ||
@@ -520,7 +554,7 @@ export async function GET(req: NextRequest) {
     const profile = await analyzeAllMatches(puuid);
     return NextResponse.json({ profile }, { status: 200 });
   } catch (err) {
-    console.error("PROFILE ROUTE ERROR", err);
+    logger.error("PROFILE ROUTE ERROR", err);
     return NextResponse.json(
       { error: "Failed to generate profile" },
       { status: 500 }
