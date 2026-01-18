@@ -311,6 +311,7 @@ export default async function Home({
           {activeTab === "coach" && (
             <CoachTab
               matchId={finalMatchId}
+              matchData={data}
               coachingReport={coachingReport}
               auditPositive={auditPositive}
               auditNegative={auditNegative}

@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable no-console */
 
 import { useState, useEffect, useRef } from "react";
-import { AnimatedSection, AnimatedItem } from "./AnimatedSection";
+// import { AnimatedSection, AnimatedItem } from "./AnimatedSection";
 import { CoachingQuotaBadge } from "./CoachingQuotaBadge";
 import { PaywallSections } from "./PaywallSection";
 import { ConversionBanner } from "./ConversionBanner";
@@ -9,8 +10,12 @@ import type { CoachingReport } from "@/types/coaching";
 import { getUserTier, canDoCoaching } from "@/lib/tier";
 import { useLanguage } from "@/lib/language";
 
+import { CoachTabSkeleton } from "./CoachTabSkeleton";
+import type { MatchPageData } from "@/types/match";
+
 interface CoachTabProps {
   matchId: string;
+  matchData: MatchPageData;
   coachingReport: CoachingReport | null;
   auditPositive: string[];
   auditNegative: string[];
@@ -20,6 +25,7 @@ interface CoachTabProps {
 
 export function CoachTab({
   matchId,
+  matchData,
   coachingReport: initialReport,
   auditPositive,
   auditNegative,
@@ -28,6 +34,7 @@ export function CoachTab({
 }: CoachTabProps) {
   const [report, setReport] = useState<CoachingReport | null>(initialReport);
   const [loading, setLoading] = useState(false);
+  const [isCached, setIsCached] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [tier, setTier] = useState<"free" | "pro">(initialTier || "free");
@@ -48,35 +55,72 @@ export function CoachTab({
   const [showFirstBanner, setShowFirstBanner] = useState(false);
   const { t } = useLanguage();
 
-  const hasFetched = useRef(false);
+  const loadingRef = useRef(false);
+
+  // Log on mount / render
+  useEffect(() => {
+    if (report) {
+       console.log(`[coach] Render with report: ${Date.now()}`);
+    }
+  });
 
   useEffect(() => {
     // Si pas de rapport initial, on le charge
-    if (!initialReport && matchId && !hasFetched.current) {
-      hasFetched.current = true;
-      // eslint-disable-next-line
+    if (!initialReport && matchId && !report) {
+      if (loadingRef.current) return;
+      
+      console.time("[coach] total");
+      console.log(`[coach] Tab active / Fetch start: ${Date.now()}`);
+      
+      const controller = new AbortController();
+      loadingRef.current = true;
       setLoading(true);
+      setError(null);
+
       fetch("/api/coaching", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId }),
+        // On envoie matchData pour éviter que le serveur ne refasse un appel inutile
+        body: JSON.stringify({ matchId, matchData }),
+        signal: controller.signal
       })
         .then(async (res) => {
+          console.log(`[coach] Response received: ${Date.now()}`);
           if (!res.ok) throw new Error("Failed to load coaching");
           const data = await res.json();
+          console.log(`[coach] Data parsed: ${Date.now()}`);
+          
           if (data.report) {
-            setReport(data.report);
+            // Update all state in one go if possible
             if (data.quota) setQuota(data.quota);
+            if (data.cached) {
+                setIsCached(true);
+                console.log("[coach] hit cache");
+            } else {
+                console.log("[coach] miss cache");
+            }
+            setReport(data.report); // This triggers render
+            console.log(`[coach] setReport called: ${Date.now()}`);
+            console.timeEnd("[coach] total");
           }
         })
         .catch((err) => {
+          if (err.name === 'AbortError') return;
           console.error(err);
           setError("Impossible de charger le coaching.");
-          hasFetched.current = false; // Permettre retry si erreur?
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+            setLoading(false);
+            loadingRef.current = false;
+        });
+
+      return () => {
+        controller.abort();
+        loadingRef.current = false;
+      };
     }
-  }, [matchId, initialReport]);
+    return undefined;
+  }, [matchId, initialReport, matchData, report]);
 
   useEffect(() => {
     // Récupérer le tier depuis l'API (pour avoir accès à DEV_TIER côté serveur)
@@ -113,7 +157,7 @@ export function CoachTab({
   const hasQuota = quota.allowed || isPro; // Pro = toujours autorisé
 
   return (
-    <AnimatedSection>
+    <div>
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -140,10 +184,30 @@ export function CoachTab({
             onDismiss={() => setShowFirstBanner(false)}
           />
         )}
+        
+        {/* Cache status */}
+        {isCached && report && (
+            <div className="mb-4 flex justify-end">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-medium text-cyan-300">
+                    <span className="mr-0.5">⚡</span> Chargé depuis le cache
+                </span>
+            </div>
+        )}
+
         {/* Message d'erreur */}
         {error && (
-          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-center text-sm text-red-300">
-            {error}
+          <div className="mb-4 flex flex-col items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-center text-sm text-red-300">
+            <p>{error}</p>
+            <button
+                onClick={() => {
+                    setReport(null);
+                    loadingRef.current = false;
+                    window.location.reload(); 
+                }}
+                className="px-4 py-2 text-xs font-medium text-white bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
+            >
+                Réessayer
+            </button>
           </div>
         )}
 
@@ -152,11 +216,7 @@ export function CoachTab({
         )}
 
         {/* Coaching basique (gratuit) - toujours visible si report existe */}
-        {loading && (
-           <div className="mt-8 flex justify-center">
-             <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/10 border-t-cyan-400" />
-           </div>
-        )}
+        {loading && !report && <CoachTabSkeleton />}
         
         {report && hasQuota && (
           <div className="mt-4 space-y-6">
@@ -166,7 +226,7 @@ export function CoachTab({
               report.action) && (
               <div className="grid gap-4 md:grid-cols-3">
                 {report.turningPoint && (
-                  <AnimatedItem>
+                  <div>
                     <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
                         {t("coaching.turningPoint")}
@@ -185,10 +245,10 @@ export function CoachTab({
                         </p>
                       )}
                     </div>
-                  </AnimatedItem>
+                  </div>
                 )}
                 {report.focus && (
-                  <AnimatedItem>
+                  <div>
                     <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-purple-300">
                         {t("coaching.focus")}
@@ -197,10 +257,10 @@ export function CoachTab({
                         {report.focus.description}
                       </p>
                     </div>
-                  </AnimatedItem>
+                  </div>
                 )}
                 {report.action && (
-                  <AnimatedItem>
+                  <div>
                     <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">
                         {t("coaching.action")}
@@ -209,14 +269,14 @@ export function CoachTab({
                         {report.action.description}
                       </p>
                     </div>
-                  </AnimatedItem>
+                  </div>
                 )}
               </div>
             )}
 
             {/* Objectifs de progression - ACCESSIBLE GRATUITEMENT (basique) */}
             {auditNegative.length > 0 && (
-              <AnimatedItem>
+              <div>
                 <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-300">
                     {t("coaching.progressionObjectives")}
@@ -240,12 +300,12 @@ export function CoachTab({
                     </p>
                   )}
                 </div>
-              </AnimatedItem>
+              </div>
             )}
 
             {/* Positives & Negatives - ACCESSIBLE GRATUITEMENT (basique) */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <AnimatedItem>
+              <div>
                 <AuditCard 
                   title={t("coaching.strengths")} 
                   tone="good" 
@@ -256,8 +316,8 @@ export function CoachTab({
                     {t("coaching.moreStrengths", { count: String(auditPositive.length - 3) })}
                   </p>
                 )}
-              </AnimatedItem>
-              <AnimatedItem>
+              </div>
+              <div>
                 <AuditCard
                   title={t("coaching.weaknesses")}
                   tone="bad"
@@ -268,7 +328,7 @@ export function CoachTab({
                     {t("coaching.moreWeaknesses", { count: String(auditNegative.length - 3) })}
                   </p>
                 )}
-              </AnimatedItem>
+              </div>
             </div>
           </div>
         )}
@@ -278,7 +338,7 @@ export function CoachTab({
           <div className="mt-6 space-y-6">
             {/* Causes racines */}
             {report.rootCauses && (
-              <AnimatedItem>
+              <div>
                 <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-violet-300">
                     {t("coaching.rootCauses")}
@@ -311,12 +371,12 @@ export function CoachTab({
                     ))}
                   </div>
                 </div>
-              </AnimatedItem>
+              </div>
             )}
 
             {/* Plan d'action */}
             {report.actionPlan && (
-              <AnimatedItem>
+              <div>
                 <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-300">
                     {t("coaching.actionPlan")}
@@ -369,12 +429,12 @@ export function CoachTab({
                     ))}
                   </div>
                 </div>
-              </AnimatedItem>
+              </div>
             )}
 
             {/* Drills / exercices */}
             {report.drills && (
-              <AnimatedItem>
+              <div>
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
                   <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-emerald-300">
                     {t("coaching.drills")}
@@ -398,7 +458,7 @@ export function CoachTab({
                     ))}
                   </div>
                 </div>
-              </AnimatedItem>
+              </div>
             )}
           </div>
         )}
@@ -420,7 +480,7 @@ export function CoachTab({
           </div>
         )}
       </section>
-    </AnimatedSection>
+    </div>
   );
 }
 

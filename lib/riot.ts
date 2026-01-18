@@ -44,7 +44,11 @@ export async function riotFetch<T>(
   try {
     const res = await fetch(url, {
       headers: { "X-Riot-Token": token },
-      ...(cacheOptions?.cache ? { cache: cacheOptions.cache } : { cache: "no-store", next: cacheOptions }),
+      ...(cacheOptions?.cache 
+        ? { cache: cacheOptions.cache } 
+        : (cacheOptions?.revalidate 
+            ? { next: cacheOptions } 
+            : { cache: "no-store" })),
       signal: controller.signal,
     });
 

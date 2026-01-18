@@ -9,6 +9,9 @@ import { validateJsonSize } from "@/lib/security";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { getCsrfTokenFromRequest, isSameOriginRequest, requiresCsrfProtection, validateCsrfToken } from "@/lib/csrf";
 import { logger } from "@/lib/logger";
+import { getCache, setCache } from "@/lib/services/redisCacheService";
+
+const COACHING_REPORT_VERSION = "v1";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -603,6 +606,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Failed to retrieve match data" }, { status: 404 });
     }
 
+    interface MatchDataWithId {
+      matchId?: string;
+      match?: { id?: string };
+    }
+    const targetMatchId = body.matchId || (matchData as unknown as MatchDataWithId).matchId || (matchData as unknown as MatchDataWithId).match?.id;
+
+    if (!targetMatchId) {
+      return NextResponse.json(
+        { error: "Could not identify matchId for caching" },
+        { status: 400 }
+      );
+    }
+
     // TODO: Récupérer userId depuis session/cookie
     const userId = req.cookies.get("userId")?.value;
 
@@ -634,6 +650,45 @@ export async function POST(req: NextRequest) {
       coachingQuality: limits.coachingQuality 
     });
 
+    // 1. Check Cache
+    // coaching:${matchId}:${tier}:${COACHING_REPORT_VERSION}
+    // We include tier because report content differs by tier (Premium vs Heuristic)
+    const cacheKey = `coaching:${targetMatchId}:${tier}:${COACHING_REPORT_VERSION}`;
+    
+    interface CachedCoachingPayload {
+      report: CoachingReport;
+      isPremium: boolean;
+      tier: string;
+    }
+
+    const cached = await getCache<CachedCoachingPayload>(cacheKey);
+
+    if (cached) {
+      logger.info(`[Coaching API] Cache HIT for ${cacheKey}`);
+      // Cache hit: Return immediately, DO NOT decrement quota
+      const response = NextResponse.json(
+        {
+          report: cached.report,
+          isPremium: cached.isPremium,
+          tier: cached.tier,
+          cached: true,
+          quota: {
+            remaining: quota.remaining, // No decrement
+            limit: quota.limit,
+          },
+        },
+        { status: 200 }
+      );
+       // Rate limiting headers (still consume rate limit for API calls, but strictly speaking it's cached)
+       // Keeping existing rate limit logic for protection
+      response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.coaching.maxRequests));
+      response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining - 1));
+      response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
+      return response;
+    }
+
+    logger.info(`[Coaching API] Cache MISS for ${cacheKey}`);
+
     const winProbData = computeWinProbability(matchData.timelineEvents);
     const report = await generateCoachingReport(
       matchData,
@@ -650,8 +705,32 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // TODO: Incrémenter le compteur de coaching dans la DB
-    // await incrementCoachingCount(userId);
+    // 2. Decrement Quota logic
+    // Decrement ONLY if OpenAI is actually called (approximated by isPremium intent)
+    // If it's a heuristic report (isPremium=false), we don't decrement.
+    const shouldDecrement = isPremium;
+
+    if (shouldDecrement) {
+        // TODO: Incrémenter le compteur de coaching dans la DB
+        // await incrementCoachingCount(userId);
+        logger.debug("[Coaching API] Quota decremented (Premium report)");
+    } else {
+        logger.debug("[Coaching API] Quota NOT decremented (Heuristic/Free report)");
+    }
+
+    // 3. Save to Cache
+    // Pro: 7 days, Free: 24 hours
+    const ttl = tier === "pro" ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
+    
+    await setCache<CachedCoachingPayload>(
+      cacheKey,
+      {
+        report,
+        isPremium,
+        tier,
+      },
+      { ttl }
+    );
 
     const response = NextResponse.json(
       {
@@ -659,7 +738,7 @@ export async function POST(req: NextRequest) {
         isPremium,
         tier,
         quota: {
-          remaining: quota.remaining - 1, // -1 car on vient de faire un coaching
+          remaining: shouldDecrement ? quota.remaining - 1 : quota.remaining,
           limit: quota.limit,
         },
       },

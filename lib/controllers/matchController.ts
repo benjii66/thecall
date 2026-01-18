@@ -201,8 +201,8 @@ export async function getRawMatch(matchId: string): Promise<RiotMatch> {
   return withRedisCache(
     `match:${region}:${matchId}`,
     () => matchCache.withMatch(matchId, async () => {
-      // Revalidate 5 minutes, tag match-{id}
-      return riotFetch<RiotMatch>(`/lol/match/v5/matches/${matchId}`, region, { revalidate: 300, tags: [`match-${matchId}`] });
+      // Revalidate 1 hour, tag match-{id}
+      return riotFetch<RiotMatch>(`/lol/match/v5/matches/${matchId}`, region, { revalidate: 3600, tags: [`match-${matchId}`] });
     }),
     3600 // 1 hour TTL in Redis
   );
@@ -213,7 +213,7 @@ export async function getRawTimeline(matchId: string): Promise<RiotTimeline | nu
     return withRedisCache(
         `timeline:${region}:${matchId}:v1`,
         () => matchCache.withTimeline(matchId, async () => {
-             return riotFetch<RiotTimeline>(`/lol/match/v5/matches/${matchId}/timeline`, region, { revalidate: 300, tags: [`match-${matchId}-timeline`] });
+             return riotFetch<RiotTimeline>(`/lol/match/v5/matches/${matchId}/timeline`, region, { revalidate: 3600, tags: [`match-${matchId}-timeline`] });
         }),
         3600
    );
