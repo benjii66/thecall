@@ -73,7 +73,7 @@ export function CoachTab({
         signal: controller.signal
       })
         .then(async (res) => {
-          if (!res.ok) throw new Error("Failed to load coaching");
+          if (!res.ok) throw new Error("Erreur de chargement service coaching");
           const data = await res.json();
           
           if (data.report) {
@@ -87,7 +87,7 @@ export function CoachTab({
         })
         .catch((err) => {
           if (err.name === 'AbortError') return;
-          setError("Impossible de charger le coaching.");
+          setError("Le chargement a rencontré un problème. Merci de réessayer.");
         })
         .finally(() => {
             setLoading(false);

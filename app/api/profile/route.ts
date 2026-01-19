@@ -526,7 +526,7 @@ export async function GET(req: NextRequest) {
     const response = NextResponse.json(
       { 
         error: "Rate limit exceeded",
-        message: "Trop de requêtes. Réessaye dans quelques instants.",
+        message: "Trop de requêtes. Merci de patienter quelques instants.",
         resetAt: new Date(rateLimit.resetAt).toISOString(),
       },
       { status: 429 }
@@ -566,7 +566,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     logger.error("PROFILE ROUTE ERROR", err);
     return NextResponse.json(
-      { error: "Failed to generate profile" },
+      { error: "Service temporarily unavailable" },
       { status: 500 }
     );
   }

@@ -736,6 +736,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     logger.error("COACHING ROUTE ERROR", error);
-    return NextResponse.json({ error: "Failed to generate coaching report" }, { status: 500 });
+    return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 500 });
   }
 }
