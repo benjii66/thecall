@@ -58,9 +58,18 @@ async function analyzeAllMatches(puuid: string): Promise<PlayerProfile> {
     };
   }> = [];
 
+  // Resolve userId for DB cache access
+  let userId: string | undefined;
+  try {
+    const user = await import("@/lib/db/ensureUser").then(m => m.ensureUser({ riotPuuid: puuid }));
+    userId = user.id;
+  } catch (e) {
+    logger.warn("Failed to resolve userId for profile", { error: e });
+  }
+
   // Utiliser le controller pour récupérer les matchs (Redis ou API)
-  // On limite le nombre de matchs à analyser pour éviter les timeouts et rate limits
-  const matchesToAnalyze = matchIds.slice(0, 20); 
+  // On réduit à 10 derniers matchs pour éviter le timeout Vercel (fonction serverless limite 10s default)
+  const matchesToAnalyze = matchIds.slice(0, 10); 
 
   // Traitement par lots pour contrôler la concurrence
   const CHUNK_SIZE = 5;
@@ -71,12 +80,12 @@ async function analyzeAllMatches(puuid: string): Promise<PlayerProfile> {
     await Promise.all(
       chunk.map(async (id) => {
         try {
-          const match = await getRawMatch(id);
+          const match = await getRawMatch(id, userId);
           // Timeline est optionnelle pour le profil de base mais utile pour les stats avancées
           // On essaie de la récupérer mais on continue sans si erreur
           let timeline: RiotTimeline | null = null;
           try {
-             timeline = await getRawTimeline(id);
+             timeline = await getRawTimeline(id, userId);
           } catch (e) {
              logger.warn(`Failed to fetch timeline for ${id}`, { error: e });
           }
