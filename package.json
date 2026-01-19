@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:free": "cross-env DEV_TIER=free NEXT_PUBLIC_DEV_TIER=free next dev",
     "dev:pro": "cross-env DEV_TIER=pro NEXT_PUBLIC_DEV_TIER=pro next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
