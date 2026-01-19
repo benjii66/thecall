@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 // GET /api/matches - Liste des matchs avec pagination intelligente
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getMatchesListController } from "@/lib/controllers/matchController";
 import type { MatchListItem } from "@/types/matchList";
 import { validatePuuid, validateGameType } from "@/lib/security";
@@ -50,11 +51,18 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const puuidParam = searchParams.get("puuid");
   const typeParam = searchParams.get("type");
+
+  // Cookie puuid
+  const cookieStore = await cookies();
+  const cookiePuuid = cookieStore.get("user_puuid")?.value;
   
+  // Dev fallback strictly controlled
+  const devPuuid = process.env.NODE_ENV === "development" ? process.env.MY_PUUID : undefined;
+
   // Valider les inputs
-  const validPuuid = puuidParam
-    ? validatePuuid(puuidParam)
-    : validatePuuid(process.env.MY_PUUID || "");
+  const rawPuuid = puuidParam || cookiePuuid || devPuuid || "";
+  
+  const validPuuid = validatePuuid(rawPuuid);
   
   const validType = validateGameType(typeParam) ?? "all";
 

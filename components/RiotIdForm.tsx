@@ -10,7 +10,9 @@ export function RiotIdForm() {
   const router = useRouter();
   const { t } = useLanguage();
 
-  const onSubmit = (e?: FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const onSubmit = async (e?: FormEvent) => {
     if (e) {
       e.preventDefault();
     }
@@ -22,9 +24,39 @@ export function RiotIdForm() {
       return;
     }
 
+    const [gameName, tagLine] = trimmed.split("#");
+    if (!gameName || !tagLine) {
+        setError(t("landing.riotIdFormat"));
+        return;
+    }
+
     setError(null);
-    const search = new URLSearchParams({ riotId: trimmed }).toString();
-    router.push(`/overview?${search}`);
+    setLoading(true);
+
+    try {
+        const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gameName, tagLine }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            setError(data.error || "Une erreur est survenue");
+            setLoading(false);
+            return;
+        }
+
+        // Login successful, redirect via server or client
+        // Using router.push to match page (which will now read cookie)
+        router.refresh(); // Refresh to update server components with new cookie
+        router.push("/match");
+        
+    } catch {
+        setError("Impossible de contacter le serveur");
+        setLoading(false);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -44,21 +76,23 @@ export function RiotIdForm() {
             id="riot-id"
             type="text"
             value={value}
+            disabled={loading}
             onChange={(e) => {
               setValue(e.target.value);
               setError(null);
             }}
             onKeyDown={handleKeyDown}
             placeholder={t("landing.riotIdPlaceholder")}
-            className="flex-1 rounded-lg border border-white/15 bg-black/60 px-3 py-2 text-sm text-white placeholder:text-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#05060b]"
+            className="flex-1 rounded-lg border border-white/15 bg-black/60 px-3 py-2 text-sm text-white placeholder:text-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#05060b] disabled:opacity-50"
             aria-invalid={Boolean(error)}
             aria-describedby={error ? "riot-id-error" : "riot-id-helper"}
           />
           <button
             type="submit"
-            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black shadow-md shadow-cyan-500/20 transition hover:bg-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#05060b]"
+            disabled={loading}
+            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black shadow-md shadow-cyan-500/20 transition hover:bg-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#05060b] disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {t("landing.analyzeButtonForm")}
+            {loading ? "..." : t("landing.analyzeButtonForm")}
           </button>
         </div>
         {error ? (

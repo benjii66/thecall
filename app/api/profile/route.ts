@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 // app/api/profile/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { riotFetch } from "@/lib/riot";
 import { getRawMatch, getRawTimeline } from "@/lib/controllers/matchController";
@@ -538,10 +539,18 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
+  
+  // Cookie puuid
+  const cookieStore = await cookies();
+  const cookiePuuid = cookieStore.get("user_puuid")?.value;
+
+  // Dev fallback strictly controlled
+  const devPuuid = process.env.NODE_ENV === "development" ? process.env.MY_PUUID : undefined;
+
   const puuid =
     searchParams.get("puuid") ||
-    process.env.MY_PUUID ||
-    process.env.NEXT_PUBLIC_PUUID ||
+    cookiePuuid ||
+    devPuuid ||
     "";
 
   if (!puuid) {

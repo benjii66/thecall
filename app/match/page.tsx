@@ -3,7 +3,6 @@ import { MatchSelector } from "@/components/MatchSelector";
 import { MatchTypeFilter } from "@/components/MatchTypeFilter";
 import { HorizontalTimeline } from "@/components/HorizontalTimeline";
 import { MatchErrorMessages, MatchListHeader, MatchNotFoundMessage, MatchUnavailableMessage } from "@/components/MatchMessages";
-import { PuuidMissingMessage } from "@/components/PuuidMissingMessage";
 import { SectionTitle } from "@/components/SectionTitle";
 import { MatchHeader } from "@/components/MatchHeader";
 import { MatchInfoBar } from "@/components/MatchInfoBar";
@@ -19,6 +18,8 @@ import { MatchDetailTransitionWrapper } from "@/components/MatchDetailTransition
 import { CoachTab } from "@/components/CoachTab";
 import { BackgroundFX } from "@/components/BackgroundFX";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { getMatchDetailsController, getMatchesListController } from "@/lib/controllers/matchController";
 import type { GameType } from "@/types/gameType";
@@ -46,26 +47,19 @@ export default async function Home({
   const activeTab = (sp.tab ?? "overview") as "overview" | "coach";
   
   // Valider le matchId si fourni
+  // Valider le matchId si fourni
   const matchId = matchIdParam ? validateMatchId(matchIdParam) : null;
 
-  // ✅ on supporte MY_PUUID (et fallback sur d'autres noms si besoin)
-  const puuid =
-    process.env.MY_PUUID ??
-    process.env.NEXT_PUBLIC_PUUID ??
-    process.env.PUUID ??
-    "";
+  // Resolution PUUID
+  const cookieStore = await cookies();
+  const cookiePuuid = cookieStore.get("user_puuid")?.value;
+  
+  const devPuuid = process.env.NODE_ENV === "development" ? (process.env.MY_PUUID || process.env.NEXT_PUBLIC_PUUID) : undefined;
+
+  const puuid = cookiePuuid || devPuuid || "";
 
   if (!puuid) {
-    return (
-      <main className="min-h-screen bg-[#05060b] text-white">
-        <NavbarWrapper />
-        <div className="mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center px-6">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_80px_rgba(0,0,0,0.55)]">
-            <PuuidMissingMessage />
-          </div>
-        </div>
-      </main>
-    );
+    redirect("/"); // Redirect to home if no login
   }
 
   // DIRECT CONTROLLER CALL - Server Side

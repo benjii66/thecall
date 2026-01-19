@@ -15,7 +15,14 @@ const items = [
   { id: "coach", label: "Coach", icon: Brain },
 ];
 
-export function Navbar() {
+interface NavbarProps {
+  currentUser?: {
+    name: string;
+    tag: string;
+  };
+}
+
+export function Navbar({ currentUser }: NavbarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -138,7 +145,7 @@ export function Navbar() {
           <PricingButton />
           
           {/* User menu dropdown */}
-          <UserMenu />
+          <UserMenu currentUser={currentUser} />
         </div>
       </div>
     </nav>
@@ -146,7 +153,7 @@ export function Navbar() {
   );
 }
 
-function UserMenu() {
+function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string } }) {
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [tier, setTier] = useState<"free" | "pro">("free");
@@ -222,10 +229,15 @@ function UserMenu() {
     router.push(href);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsOpen(false);
-    // TODO: Implémenter la déconnexion
-    // logger.info("Déconnexion...");
+    try {
+        await fetch("/api/auth/logout", { method: "POST" });
+        router.refresh();
+        router.push("/");
+    } catch (e) {
+        console.error("Logout failed", e);
+    }
   };
 
   const isFree = tier === "free";
@@ -262,7 +274,10 @@ function UserMenu() {
         <div className="p-2">
           {/* User info */}
           <div className="px-3 py-2 mb-2 border-b border-white/10">
-                  <div className="text-sm font-semibold text-white">BNJ #6627</div>
+                  <div className="text-sm font-semibold text-white">
+                    {currentUser?.name || "InvitÃ©"} 
+                    <span className="text-white/50 ml-1">#{currentUser?.tag || "0000"}</span>
+                  </div>
                   <div className="text-xs text-white/50 mt-0.5">
                     {isFree ? t("navbar.userTierFree") : t("navbar.userTierPro")}
                   </div>
@@ -328,7 +343,7 @@ function UserMenu() {
           whileTap={{ scale: 0.95 }}
         >
           <div className="hidden sm:block text-right text-xs text-white/60">
-            BNJ<br />#6627
+            {currentUser?.name || "InvitÃ©"}<br />#{currentUser?.tag || "0000"}
           </div>
           <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-black/10">
             <User size={14} className="sm:w-4 sm:h-4" />
