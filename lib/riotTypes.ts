@@ -26,7 +26,9 @@ export type RiotParticipant = {
   puuid: string;
   teamId: number;
   teamPosition: string;
+  individualPosition: string;
 
+  championId: number;
   championName: string;
 
   kills: number;
@@ -58,6 +60,7 @@ export type RiotMatch = {
     matchId: string;
   };
   info: {
+    gameCreation: number;
     queueId: number;
     gameDuration: number;
     participants: RiotParticipant[];

@@ -5,7 +5,7 @@ import Image from "next/image";
 import type { RoleStats } from "@/types/profile";
 import { useLanguage } from "@/lib/language";
 
-const DD_VERSION = "14.18.1";
+const DD_VERSION = "14.23.1";
 const champIcon = (name: string) =>
   `https://ddragon.leagueoflegends.com/cdn/${DD_VERSION}/img/champion/${name}.png`;
 

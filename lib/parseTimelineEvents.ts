@@ -255,7 +255,7 @@ export function extractTimelineEvents(
       if (isEliteMonster(raw)) {
         const { minute, second } = getTime(raw.timestamp);
 
-        // VOID GRUBS (S15+)
+        // VOID GRUBS (S14+) - Persists in S2026
         if (raw.monsterType === "HORDE") {
           return [
             {
@@ -268,6 +268,10 @@ export function extractTimelineEvents(
             },
           ];
         }
+
+        // ATAKHAN REMOVED in Season 2026
+        // If it appears in old replays, handle as generic or ignore special label.
+        // We focus on standard objectives.
 
         if (raw.monsterType === "DRAGON") {
           const rawSub =

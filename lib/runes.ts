@@ -22,7 +22,7 @@ export async function getRuneMap(): Promise<Map<number, string>> {
   if (runeMapCache) return runeMapCache;
 
   const res = await fetch(
-    "https://ddragon.leagueoflegends.com/cdn/14.18.1/data/en_US/runesReforged.json",
+    "https://ddragon.leagueoflegends.com/cdn/14.23.1/data/en_US/runesReforged.json",
     { cache: "force-cache" }
   );
 

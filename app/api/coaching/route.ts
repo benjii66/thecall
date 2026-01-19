@@ -9,7 +9,6 @@ import { validateJsonSize } from "@/lib/security";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { getCsrfTokenFromRequest, isSameOriginRequest, requiresCsrfProtection, validateCsrfToken } from "@/lib/csrf";
 import { logger } from "@/lib/logger";
-import { getCache, setCache } from "@/lib/services/redisCacheService";
 
 const COACHING_REPORT_VERSION = "v1";
 
@@ -513,249 +512,229 @@ function generateHeuristicReport(
   };
 }
 
+import { prisma } from "@/lib/prisma"; // Added import
+
+// ... (previous imports)
+
+// ... (helper functions: generateCoachingReport, buildPrompt, parseLLMResponse, generateHeuristicReport) stay same
+
+// Main POST handler:
+// ... imports ...
+import { ensureUser } from "@/lib/db/ensureUser";
+import { persistMatchJson } from "@/lib/db/persistMatchJson";
+import { persistTimelineJson } from "@/lib/db/persistTimelineJson";
+import { getRawMatch, getRawTimeline } from "@/lib/controllers/matchController";
+// ... (keep generic helpers like generateCoachingReport etc) ...
+
+// Main POST handler:
 export async function POST(req: NextRequest) {
   try {
-    // CSRF Protection (sauf pour les appels depuis Server Components)
+    // CSRF & Rate Limit checks (keep existing)
     if (requiresCsrfProtection("POST", req.nextUrl.pathname)) {
-      // Permettre les appels depuis le même serveur (Server Components)
-      const isSameOrigin = isSameOriginRequest(req);
-      
-      if (!isSameOrigin) {
-        const csrfToken = getCsrfTokenFromRequest(req);
-        const sessionToken = req.cookies.get("csrf-token")?.value;
-        
-        if (!csrfToken || !validateCsrfToken(csrfToken, sessionToken || "")) {
-          return NextResponse.json(
-            { error: "CSRF token invalide ou manquant" },
-            { status: 403 }
-          );
+        const isSameOrigin = isSameOriginRequest(req);
+        if (!isSameOrigin) {
+          const csrfToken = getCsrfTokenFromRequest(req);
+          const sessionToken = req.cookies.get("csrf-token")?.value;
+          if (!csrfToken || !validateCsrfToken(csrfToken, sessionToken || "")) {
+            return NextResponse.json({ error: "CSRF token invalide ou manquant" }, { status: 403 });
+          }
         }
-      }
     }
-    
-    // Rate limiting
     const identifier = getRateLimitIdentifier(req);
     const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.coaching);
-    
     if (!rateLimit.allowed) {
-      const response = NextResponse.json(
-        {
-          error: "Too many requests",
-          message: "Tu as dépassé la limite de requêtes. Réessaie dans quelques instants.",
-          retryAfter: Math.ceil((rateLimit.resetAt - Date.now()) / 1000),
-        },
-        { status: 429 }
-      );
-      response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.coaching.maxRequests));
-      response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
-      response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
-      response.headers.set("Retry-After", String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)));
-      return response;
+        return NextResponse.json({ error: "Too many requests", retryAfter: Math.ceil((rateLimit.resetAt - Date.now()) / 1000) }, { status: 429 });
     }
-    
-    // Limiter la taille du body (max 5MB)
+
+    // Parse Body
     const bodyText = await req.text();
-    if (bodyText.length > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "Request body too large" },
-        { status: 413 }
-      );
-    }
-    
-    const body = JSON.parse(bodyText) as {
-      matchData?: MatchPageData;
-      matchId?: string;
-      isPremium?: boolean;
-    };
-    
-    // Valider la taille de l'objet JSON
-    if (!validateJsonSize(body, 5 * 1024 * 1024)) {
-      return NextResponse.json(
-        { error: "Request data too large" },
-        { status: 413 }
-      );
-    }
-    
-    // Validation: Soit matchData, soit matchId
-    if (!body.matchData && !body.matchId) {
-      return NextResponse.json(
-        { error: "Missing matchData or matchId" },
-        { status: 400 }
-      );
-    }
+    if (bodyText.length > 5 * 1024 * 1024) return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    const body = JSON.parse(bodyText);
+    if (!validateJsonSize(body, 5 * 1024 * 1024)) return NextResponse.json({ error: "Request data too large" }, { status: 413 });
+    if (!body.matchData && !body.matchId) return NextResponse.json({ error: "Missing matchData or matchId" }, { status: 400 });
 
     let matchData = body.matchData;
-
-    // Si on a seulement matchId, on récupère les données
+    // Retrieve match data if needed (if body only has ID)
     if (!matchData && body.matchId) {
-      const puuid = process.env.MY_PUUID || process.env.NEXT_PUBLIC_PUUID || ""; // TODO: Mieux gérer le PUUID
-      
-      if (!puuid) {
-         return NextResponse.json({ error: "Configuration error: Missing PUUID" }, { status: 500 });
-      }
+        const puuid = process.env.MY_PUUID || process.env.NEXT_PUBLIC_PUUID || "";
+        if (!puuid) return NextResponse.json({ error: "Configuration error: Missing PUUID" }, { status: 500 });
+        matchData = await getMatchDetailsController(body.matchId, puuid);
+        if (!matchData) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+    if (!matchData) return NextResponse.json({ error: "Failed to retrieve match data" }, { status: 404 });
 
-      const fetchedData = await getMatchDetailsController(body.matchId, puuid);
-      if (!fetchedData) {
-        return NextResponse.json({ error: "Match not found" }, { status: 404 });
-      }
-      matchData = fetchedData;
+    // Identify Context
+    interface MatchDataWithId { matchId?: string; match?: { id?: string }; }
+    const riotMatchId = body.matchId || (matchData as unknown as MatchDataWithId).matchId || (matchData as unknown as MatchDataWithId).match?.id;
+    if (!riotMatchId) return NextResponse.json({ error: "Could not identify matchId" }, { status: 400 });
+
+    const puuid = process.env.MY_PUUID || process.env.NEXT_PUBLIC_PUUID || ""; // Helper relies on this
+    // We ideally need the PUUID used for fetching. Assuming MY_PUUID for now as in controller.
+
+    // 1. Ensure User & Match Persistence
+    // Ideally we assume matchController already persisted Match, but we verify here for robustness
+    let userId: string | undefined = undefined;
+    
+    // Attempt to persist/retrieve user
+    if (puuid) {
+        try {
+            const user = await ensureUser({ riotPuuid: puuid });
+            userId = user.id;
+            logger.debug(`[Coaching API] User ensured (id=${userId})`);
+        } catch (e) {
+            logger.warn("[Coaching API] Failed to ensure user", { error: e });
+        }
     }
 
-    // Verify matchData presence
-    if (!matchData) {
-        return NextResponse.json({ error: "Failed to retrieve match data" }, { status: 404 });
-    }
-
-    interface MatchDataWithId {
-      matchId?: string;
-      match?: { id?: string };
-    }
-    const targetMatchId = body.matchId || (matchData as unknown as MatchDataWithId).matchId || (matchData as unknown as MatchDataWithId).match?.id;
-
-    if (!targetMatchId) {
-      return NextResponse.json(
-        { error: "Could not identify matchId for caching" },
-        { status: 400 }
-      );
-    }
-
-    // TODO: Récupérer userId depuis session/cookie
-    const userId = req.cookies.get("userId")?.value;
-
-    // Vérifier le tier et le quota
-    const tier = getUserTier(userId);
+    // Check Tier/Quota
+    const tier = getUserTier(userId); // Works even if userId undefined (returns free)
     const limits = getUserTierLimits(userId);
     const quota = await canDoCoaching(userId);
-
-    // Vérifier si l'utilisateur peut faire un coaching
+    
     if (!quota.allowed) {
-      return NextResponse.json(
-        {
-          error: "Quota coaching épuisé",
-          message: `Tu as utilisé ${quota.limit}/${quota.limit} coachings ce mois. Upgrade Pro pour coaching illimité.`,
-          remaining: 0,
-          limit: quota.limit,
-        },
-        { status: 403 }
-      );
+        return NextResponse.json({ 
+            error: "Quota coaching épuisé", 
+            message: `Tu as utilisé ${quota.limit}/${quota.limit} coachings.`,
+            remaining: 0 
+        }, { status: 403 });
     }
 
-    // Déterminer si premium (basé sur le tier réel, pas le body)
     const isPremium = tier === "pro" && limits.coachingQuality === "premium";
-    
-    logger.debug("[Coaching API] Tier détecté", { 
-      devTier: process.env.DEV_TIER,
-      tier, 
-      isPremium, 
-      coachingQuality: limits.coachingQuality 
+    const quality = isPremium ? "premium" : "heuristic";
+
+    // 2. Check DB Cache (CoachingReport)
+    let dbMatchId: string | undefined;
+
+    if (userId) {
+        // Find Match Row
+        const dbMatch = await prisma.match.findUnique({
+             where: { userId_matchId: { userId, matchId: riotMatchId } }
+        });
+        
+        if (dbMatch) {
+            dbMatchId = dbMatch.id;
+
+            // LAZY LOAD: Ensure we have MatchJSON & TimelineJSON if we are going to generate
+            // If cached report exists, we don't strictly need them unless we want to access them? 
+            // Users want fast return. So check report FIRST.
+
+            // Check existing report
+            const dbReport = await prisma.coachingReport.findUnique({
+                where: {
+                    matchDbId_version_quality: {
+                        matchDbId: dbMatch.id,
+                        version: COACHING_REPORT_VERSION,
+                        quality: quality
+                    }
+                }
+            });
+
+            if (dbReport) {
+                logger.debug(`[DB] coachingReport HIT (matchId=${riotMatchId}, quality=${quality})`);
+                return NextResponse.json({
+                    report: dbReport.reportJson,
+                    isPremium: quality === "premium",
+                    tier,
+                    cached: true,
+                    quota: { remaining: quota.remaining, limit: quota.limit }
+                });
+            }
+
+            // Report MISSING -> proceed to generate.
+            // NOW ensure we have the heavy JSONs in DB (lazy load)
+            
+            // A) Check MatchJSON
+            if (!dbMatch.hasMatchJson) {
+                logger.info(`[Coaching API] Lazy loading matchJson for ${riotMatchId}`);
+                // matchData might be full or partial. If it lacks info, refetch.
+                // We have matchData from body maybe? 
+                // matchController.getMatchDetailsController returns processed data, not raw JSON.
+                // So we likely need to fetch RAW match to persist.
+                await persistMatchJson({ 
+                     userId, 
+                     matchId: riotMatchId, 
+                     matchJson: await getRawMatch(riotMatchId, undefined, undefined, 'none') // Fetch but don't auto-persist logic here, we call explicit helper
+                });
+            }
+
+            // B) Check TimelineJSON
+            if (!dbMatch.hasTimelineJson) {
+                 logger.info(`[Coaching API] Lazy loading timelineJson for ${riotMatchId}`);
+                 const rawTimeline = await getRawTimeline(riotMatchId, undefined); // Fetch raw
+                 if (rawTimeline) {
+                     await persistTimelineJson({ userId, matchId: riotMatchId, timelineJson: rawTimeline });
+                 }
+            }
+
+        } else {
+            // Match not in DB at all?
+            // This happens if user never visited /match list? Or fresh directly to coach?
+            // We should persist full match.
+             try {
+                // Fetch & Persist FULL
+                await getRawMatch(riotMatchId, userId, puuid, 'full');
+                await getRawTimeline(riotMatchId, userId); // This internally persists if userId present? 
+                // getRawTimeline(..., userId) -> calls persistTimelineJson if userId present.
+                // So calling with userId is enough?
+                // logic in matchController: if (userId && riotData) persistTimelineJson...
+                // Yes.
+             } catch (e) {
+                logger.warn("[Coaching API] Recovery persist failed", { error: e });
+             }
+             // Re-fetch ID?
+             const retryMatch = await prisma.match.findUnique({ where: { userId_matchId: { userId, matchId: riotMatchId } }});
+             dbMatchId = retryMatch?.id;
+        }
+    }
+
+    // 3. Generate Report
+    logger.info("[Coaching API] Generating Report (fresh)", { matchId: riotMatchId, quality });
+    const winProbData = computeWinProbability(matchData.timelineEvents);
+    const report = await generateCoachingReport(matchData, winProbData, isPremium);
+
+    // 4. Persist Report
+    if (dbMatchId) {
+        try {
+            await prisma.coachingReport.upsert({
+                where: {
+                    matchDbId_version_quality: {
+                        matchDbId: dbMatchId,
+                        version: COACHING_REPORT_VERSION,
+                        quality: quality
+                    }
+                },
+                create: {
+                   matchDbId: dbMatchId,
+                   version: COACHING_REPORT_VERSION,
+                   quality: quality,
+                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                   reportJson: report as any,
+                   modelUsed: isPremium ? OPENAI_MODEL : null
+                },
+                update: {
+                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                   reportJson: report as any
+                }
+            });
+            logger.info(`[DB] coachingReport upsert OK (matchDbId=${dbMatchId})`);
+        } catch (e) {
+            logger.error("[DB] Failed to save coaching report", e);
+        }
+    }
+
+    // 5. Update Quota (only if not cached)
+    // ... (keep TODO or existing logic) ...
+
+    return NextResponse.json({
+        report,
+        isPremium,
+        tier,
+        cached: false,
+        quota: { remaining: isPremium ? quota.remaining - 1 : quota.remaining, limit: quota.limit }
     });
 
-    // 1. Check Cache
-    // coaching:${matchId}:${tier}:${COACHING_REPORT_VERSION}
-    // We include tier because report content differs by tier (Premium vs Heuristic)
-    const cacheKey = `coaching:${targetMatchId}:${tier}:${COACHING_REPORT_VERSION}`;
-    
-    interface CachedCoachingPayload {
-      report: CoachingReport;
-      isPremium: boolean;
-      tier: string;
-    }
-
-    const cached = await getCache<CachedCoachingPayload>(cacheKey);
-
-    if (cached) {
-      logger.info(`[Coaching API] Cache HIT for ${cacheKey}`);
-      // Cache hit: Return immediately, DO NOT decrement quota
-      const response = NextResponse.json(
-        {
-          report: cached.report,
-          isPremium: cached.isPremium,
-          tier: cached.tier,
-          cached: true,
-          quota: {
-            remaining: quota.remaining, // No decrement
-            limit: quota.limit,
-          },
-        },
-        { status: 200 }
-      );
-       // Rate limiting headers (still consume rate limit for API calls, but strictly speaking it's cached)
-       // Keeping existing rate limit logic for protection
-      response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.coaching.maxRequests));
-      response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining - 1));
-      response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
-      return response;
-    }
-
-    logger.info(`[Coaching API] Cache MISS for ${cacheKey}`);
-
-    const winProbData = computeWinProbability(matchData.timelineEvents);
-    const report = await generateCoachingReport(
-      matchData,
-      winProbData,
-      isPremium
-    );
-    
-    // Log pour debug
-    if (isPremium) {
-      logger.debug("[Coaching API] Report premium généré", {
-        hasRootCauses: !!report.rootCauses,
-        hasActionPlan: !!report.actionPlan,
-        hasDrills: !!report.drills,
-      });
-    }
-
-    // 2. Decrement Quota logic
-    // Decrement ONLY if OpenAI is actually called (approximated by isPremium intent)
-    // If it's a heuristic report (isPremium=false), we don't decrement.
-    const shouldDecrement = isPremium;
-
-    if (shouldDecrement) {
-        // TODO: Incrémenter le compteur de coaching dans la DB
-        // await incrementCoachingCount(userId);
-        logger.debug("[Coaching API] Quota decremented (Premium report)");
-    } else {
-        logger.debug("[Coaching API] Quota NOT decremented (Heuristic/Free report)");
-    }
-
-    // 3. Save to Cache
-    // Pro: 7 days, Free: 24 hours
-    const ttl = tier === "pro" ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
-    
-    await setCache<CachedCoachingPayload>(
-      cacheKey,
-      {
-        report,
-        isPremium,
-        tier,
-      },
-      { ttl }
-    );
-
-    const response = NextResponse.json(
-      {
-        report,
-        isPremium,
-        tier,
-        quota: {
-          remaining: shouldDecrement ? quota.remaining - 1 : quota.remaining,
-          limit: quota.limit,
-        },
-      },
-      { status: 200 }
-    );
-    
-    // Headers rate limiting
-    response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.coaching.maxRequests));
-    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining - 1));
-    response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
-    
-    return response;
   } catch (error) {
     logger.error("COACHING ROUTE ERROR", error);
-    return NextResponse.json(
-      { error: "Failed to generate coaching report" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to generate coaching report" }, { status: 500 });
   }
 }

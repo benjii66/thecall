@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable no-console */
+ 
 
 import { useState, useEffect, useRef } from "react";
 // import { AnimatedSection, AnimatedItem } from "./AnimatedSection";
@@ -57,20 +57,10 @@ export function CoachTab({
 
   const loadingRef = useRef(false);
 
-  // Log on mount / render
-  useEffect(() => {
-    if (report) {
-       console.log(`[coach] Render with report: ${Date.now()}`);
-    }
-  });
-
   useEffect(() => {
     // Si pas de rapport initial, on le charge
     if (!initialReport && matchId && !report) {
       if (loadingRef.current) return;
-      
-      console.time("[coach] total");
-      console.log(`[coach] Tab active / Fetch start: ${Date.now()}`);
       
       const controller = new AbortController();
       loadingRef.current = true;
@@ -85,28 +75,20 @@ export function CoachTab({
         signal: controller.signal
       })
         .then(async (res) => {
-          console.log(`[coach] Response received: ${Date.now()}`);
           if (!res.ok) throw new Error("Failed to load coaching");
           const data = await res.json();
-          console.log(`[coach] Data parsed: ${Date.now()}`);
           
           if (data.report) {
             // Update all state in one go if possible
             if (data.quota) setQuota(data.quota);
             if (data.cached) {
                 setIsCached(true);
-                console.log("[coach] hit cache");
-            } else {
-                console.log("[coach] miss cache");
             }
-            setReport(data.report); // This triggers render
-            console.log(`[coach] setReport called: ${Date.now()}`);
-            console.timeEnd("[coach] total");
+            setReport(data.report); 
           }
         })
         .catch((err) => {
           if (err.name === 'AbortError') return;
-          console.error(err);
           setError("Impossible de charger le coaching.");
         })
         .finally(() => {
@@ -218,12 +200,67 @@ export function CoachTab({
         {/* Coaching basique (gratuit) - toujours visible si report existe */}
         {loading && !report && <CoachTabSkeleton />}
         
-        {report && hasQuota && (
-          <div className="mt-4 space-y-6">
-            {/* Turning Point, Focus, Action - ACCESSIBLE GRATUITEMENT */}
-            {(report.turningPoint ||
-              report.focus ||
-              report.action) && (
+        <div className="mt-4 space-y-6">
+            {/* 1. Insights immédiats (Audit) - Toujours visibles */}
+            {/* Objectifs de progression */}
+            {auditNegative.length > 0 && (
+              <div>
+                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+                  <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-300">
+                    {t("coaching.progressionObjectives")}
+                  </h3>
+                  <ul className="space-y-3">
+                    {auditNegative.slice(0, isPro ? auditNegative.length : 3).map((item, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-3"
+                      >
+                        <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/10 text-xs font-semibold text-cyan-300">
+                          {i + 1}
+                        </div>
+                        <p className="flex-1 text-sm text-white/90">{item}</p>
+                      </li>
+                    ))}
+                  </ul>
+                  {!isPro && auditNegative.length > 3 && (
+                    <p className="mt-3 text-xs text-white/50 italic">
+                      {t("coaching.moreObjectives", { count: String(auditNegative.length - 3) })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Positives & Negatives */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div>
+                <AuditCard 
+                  title={t("coaching.strengths")} 
+                  tone="good" 
+                  items={isPro ? auditPositive : auditPositive.slice(0, 3)} 
+                />
+                {!isPro && auditPositive.length > 3 && (
+                  <p className="mt-2 text-xs text-white/50 italic text-center">
+                    {t("coaching.moreStrengths", { count: String(auditPositive.length - 3) })}
+                  </p>
+                )}
+              </div>
+              <div>
+                <AuditCard
+                  title={t("coaching.weaknesses")}
+                  tone="bad"
+                  items={isPro ? auditNegative : auditNegative.slice(0, 3)}
+                />
+                {!isPro && auditNegative.length > 3 && (
+                  <p className="mt-2 text-xs text-white/50 italic text-center">
+                    {t("coaching.moreWeaknesses", { count: String(auditNegative.length - 3) })}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Insights AI / Heuristiques (Turning Point, Focus, etc.) - Si report chargé */}
+            {report && hasQuota && (report.turningPoint || report.focus || report.action) && (
               <div className="grid gap-4 md:grid-cols-3">
                 {report.turningPoint && (
                   <div>
@@ -273,65 +310,7 @@ export function CoachTab({
                 )}
               </div>
             )}
-
-            {/* Objectifs de progression - ACCESSIBLE GRATUITEMENT (basique) */}
-            {auditNegative.length > 0 && (
-              <div>
-                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-                  <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-300">
-                    {t("coaching.progressionObjectives")}
-                  </h3>
-                  <ul className="space-y-3">
-                    {auditNegative.slice(0, isPro ? auditNegative.length : 3).map((item, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-3"
-                      >
-                        <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/10 text-xs font-semibold text-cyan-300">
-                          {i + 1}
-                        </div>
-                        <p className="flex-1 text-sm text-white/90">{item}</p>
-                      </li>
-                    ))}
-                  </ul>
-                  {!isPro && auditNegative.length > 3 && (
-                    <p className="mt-3 text-xs text-white/50 italic">
-                      {t("coaching.moreObjectives", { count: String(auditNegative.length - 3) })}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Positives & Negatives - ACCESSIBLE GRATUITEMENT (basique) */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div>
-                <AuditCard 
-                  title={t("coaching.strengths")} 
-                  tone="good" 
-                  items={isPro ? auditPositive : auditPositive.slice(0, 3)} 
-                />
-                {!isPro && auditPositive.length > 3 && (
-                  <p className="mt-2 text-xs text-white/50 italic text-center">
-                    {t("coaching.moreStrengths", { count: String(auditPositive.length - 3) })}
-                  </p>
-                )}
-              </div>
-              <div>
-                <AuditCard
-                  title={t("coaching.weaknesses")}
-                  tone="bad"
-                  items={isPro ? auditNegative : auditNegative.slice(0, 3)}
-                />
-                {!isPro && auditNegative.length > 3 && (
-                  <p className="mt-2 text-xs text-white/50 italic text-center">
-                    {t("coaching.moreWeaknesses", { count: String(auditNegative.length - 3) })}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
             {/* Sections premium (UNIQUEMENT pour tier Pro) */}
         {isPro && report && (report.rootCauses || report.actionPlan || report.drills) && (
@@ -514,4 +493,3 @@ function AuditCard({
     </div>
   );
 }
-

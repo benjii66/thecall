@@ -12,3 +12,138 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// User & Auth
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  
+  // Custom Fields
+  riotPuuid        String?   @unique
+  riotGameName     String?
+  riotTagLine      String?
+  riotRegion       String?   // ex: EUW1
+  
+  stripeCustomerId String?   @unique
+  tier             String?   @default("free") // free/pro
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  matches       Match[]
+  usage         Usage?
+  subscription  Subscription?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// NextAuth Standard
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Core Domain: Matches
+model Match {
+  id            String   @id @default(cuid()) // Internal PK
+  matchId       String   // Riot Match ID (ex: EUW1_123456)
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  gameCreation  DateTime
+  gameDuration  Int
+  queueId       Int
+  win           Boolean
+  championId    Int
+  role          String?
+
+  // Data Storage
+  matchJson     Json?
+  timelineJson  Json?
+
+  hasMatchJson    Boolean @default(false)
+  hasTimelineJson Boolean @default(false)
+
+  // Coaching Link
+  coachingReports CoachingReport[]
+
+  createdAt     DateTime @default(now())
+  
+  @@unique([userId, matchId])
+  @@index([userId, gameCreation])
+}
+
+// Core Domain: Coaching
+model CoachingReport {
+  id        String   @id @default(cuid())
+  
+  matchDbId String
+  match     Match    @relation(fields: [matchDbId], references: [id], onDelete: Cascade)
+  
+  version   String   @default("v1")
+  quality   String   // "heuristic" | "premium"
+  
+  reportJson Json
+  modelUsed  String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([matchDbId, version, quality])
+}
+
+// Usage & Quotas
+model Usage {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  coachingCount  Int       @default(0)
+  monthlyCount   Int       @default(0)
+  monthlyResetAt DateTime  @default(now())
+  lastCoachingAt DateTime?
+
+  updatedAt      DateTime  @updatedAt
+}
+
+// Stripe Subscription
+model Subscription {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status             String    // active, past_due, canceled, etc
+  plan               String    // free, pro
+  priceId            String?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+
+  updatedAt          DateTime  @updatedAt
+}

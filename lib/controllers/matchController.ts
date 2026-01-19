@@ -7,10 +7,11 @@ import type { MatchListItem } from "@/types/matchList";
 import { QUEUE_BY_TYPE } from "@/types/gameType";
 import { extractTimelineEvents } from "@/lib/parseTimelineEvents";
 import { logger } from "@/lib/logger";
+import { ensureUser } from "@/lib/db/ensureUser";
 
 // --- Types & Constants moved from route.ts (simplified) ---
-
-const DD_VERSION = "14.18.1";
+// We will now fetch this dynamically, but keep a fallback
+const FALLBACK_DD_VERSION = "16.1.1"; 
 const TARGET_MATCHES = 10;
 const IDS_BATCH = 20;
 const MAX_LOOKBACK_PAGES = 6;
@@ -34,6 +35,33 @@ type RuneJSONStyle = {
 
 // --- Cache Helpers ---
 
+let ddVersionCache: { at: number; version: string } | null = null;
+const VERSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+export async function getLatestDataDragonVersion(): Promise<string> {
+  if (ddVersionCache && Date.now() - ddVersionCache.at < VERSION_TTL_MS) {
+    return ddVersionCache.version;
+  }
+  try {
+      const res = await fetch("https://ddragon.leagueoflegends.com/api/versions.json", {
+          next: { revalidate: 86400 } // Cache for 24h
+      });
+      if (res.ok) {
+          const versions = await res.json();
+          if (Array.isArray(versions) && versions.length > 0) {
+              const v = versions[0];
+              ddVersionCache = { at: Date.now(), version: v };
+              logger.debug(`[MatchController] Resolved DataDragon version: ${v}`);
+              return v;
+          }
+      }
+  } catch (e) {
+      logger.warn("[MatchController] Failed to fetch DD version, using fallback", { error: e });
+  }
+  return FALLBACK_DD_VERSION;
+}
+
+
 let runeJsonCache: { at: number; data: RuneJSONStyle[] } | null = null;
 const RUNES_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -41,8 +69,9 @@ async function getRunesJson(): Promise<RuneJSONStyle[]> {
   if (runeJsonCache && Date.now() - runeJsonCache.at < RUNES_TTL_MS) {
     return runeJsonCache.data;
   }
+  const version = await getLatestDataDragonVersion();
   const res = await fetch(
-    `https://ddragon.leagueoflegends.com/cdn/${DD_VERSION}/data/en_US/runesReforged.json`,
+    `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/runesReforged.json`,
     { next: { revalidate: 86400 } }
   );
   if (!res.ok) return [];
@@ -70,8 +99,9 @@ async function getItemsJson(): Promise<Record<string, { name: string }>> {
   if (itemJsonCache && Date.now() - itemJsonCache.at < ITEMS_TTL_MS) {
     return itemJsonCache.data;
   }
+  const version = await getLatestDataDragonVersion();
   const res = await fetch(
-    `https://ddragon.leagueoflegends.com/cdn/${DD_VERSION}/data/en_US/item.json`,
+    `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/item.json`,
     { next: { revalidate: 86400 } }
   );
   if (!res.ok) return {};
@@ -196,35 +226,118 @@ import { withRedisCache } from "@/lib/services/redisCacheService";
 
 // ... imports
 
-export async function getRawMatch(matchId: string): Promise<RiotMatch> {
+import { prisma } from "@/lib/prisma";
+
+import { persistMatchMetadata } from "@/lib/db/persistMatchMetadata";
+import { persistMatchJson } from "@/lib/db/persistMatchJson";
+// import persistMatch removed
+
+type PersistenceStrategy = 'none' | 'metadata' | 'full';
+
+export async function getRawMatch(matchId: string, userId?: string, userPuuid?: string, strategy: PersistenceStrategy = 'none'): Promise<RiotMatch> {
   const region = "europe";
+  const redisKey = `match:${region}:${matchId}`;
+
   return withRedisCache(
-    `match:${region}:${matchId}`,
-    () => matchCache.withMatch(matchId, async () => {
-      // Revalidate 1 hour, tag match-{id}
-      return riotFetch<RiotMatch>(`/lol/match/v5/matches/${matchId}`, region, { revalidate: 3600, tags: [`match-${matchId}`] });
-    }),
-    3600 // 1 hour TTL in Redis
+    redisKey,
+    async () => {
+        // 1. DB Check - Strategy dependent
+        if (userId) {
+            // If strategy is 'full', we need matchJson.
+            // If strategy is 'metadata', we technically only need metadata columns but return type is RiotMatch.
+            // However, we can't easily reconstruct RiotMatch from just metadata. 
+            // So we check if matchJson exists.
+            
+            const dbMatch = await prisma.match.findUnique({
+                where: { userId_matchId: { userId, matchId } },
+            });
+
+            if (dbMatch && dbMatch.hasMatchJson && dbMatch.matchJson) {
+                logger.debug(`[DB] match DB HIT (matchId=${matchId})`); // Changed to debug to reduce noise
+                return dbMatch.matchJson as unknown as RiotMatch;
+            }
+            // If we have metadata but no JSON, and we need JSON (for return type), we must fetch from Riot.
+        }
+
+        // 2. Riot Fetch
+        const riotData = await riotFetch<RiotMatch>(
+            `/lol/match/v5/matches/${matchId}`, 
+            region, 
+            { revalidate: 3600, tags: [`match-${matchId}`] }
+        );
+
+        // 3. Persistence
+        if (userId && userPuuid) {
+            if (strategy === 'metadata') {
+                await persistMatchMetadata({ userId, userPuuid, matchId, matchJson: riotData });
+            } else if (strategy === 'full') {
+                 await persistMatchJson({ userId, matchId, matchJson: riotData });
+            }
+        }
+        
+        return riotData;
+    },
+    3600
   );
 }
 
-export async function getRawTimeline(matchId: string): Promise<RiotTimeline | null> {
+import { persistTimelineJson } from "@/lib/db/persistTimelineJson";
+
+export async function getRawTimeline(matchId: string, userId?: string): Promise<RiotTimeline | null> {
     const region = "europe";
     return withRedisCache(
         `timeline:${region}:${matchId}:v1`,
-        () => matchCache.withTimeline(matchId, async () => {
-             return riotFetch<RiotTimeline>(`/lol/match/v5/matches/${matchId}/timeline`, region, { revalidate: 3600, tags: [`match-${matchId}-timeline`] });
-        }),
+        async () => {
+             // DB Check
+             if (userId) {
+                 const dbMatch = await prisma.match.findUnique({
+                     where: { userId_matchId: { userId, matchId } },
+                     select: { timelineJson: true, hasTimelineJson: true }
+                 });
+                 if (dbMatch?.hasTimelineJson && dbMatch.timelineJson) {
+                     logger.debug(`[DB] timeline DB HIT (matchId=${matchId})`);
+                     return dbMatch.timelineJson as unknown as RiotTimeline;
+                 }
+             }
+
+             // Riot Fetch
+             const riotData = await riotFetch<RiotTimeline>(
+                 `/lol/match/v5/matches/${matchId}/timeline`, 
+                 region, 
+                 { revalidate: 3600, tags: [`match-${matchId}-timeline`] }
+             );
+
+             // DB Save
+             if (userId && riotData) {
+                 await persistTimelineJson({ userId, matchId, timelineJson: riotData });
+             }
+             
+             return riotData;
+        },
         3600
    );
 }
 
 export async function getMatchDetailsController(matchId: string, puuid: string): Promise<MatchPageData | null> {
     try {
-        // const region = "europe"; // interne au helper
+        // Resolve & Ensure User Persistence
+        let userId: string | undefined;
+        try {
+            if (puuid) {
+                const user = await ensureUser({ riotPuuid: puuid });
+                userId = user.id;
+            }
+        } catch (e) {
+            logger.warn("[MatchController] Failed to ensure user in DB", { error: e });
+        }
 
-        const match = await getRawMatch(matchId);
-        const timeline = await getRawTimeline(matchId);
+        const match = await getRawMatch(matchId, userId, puuid, 'full'); // Pass 'full' for persistence
+        if (!userId) {
+             // If we didn't resolve userId previously (e.g. ensureUser failed?), try to get it from match participants if we want?
+             // But actually ensureUser is robust. If it failed, userId is undefined, persistence inside getRawMatch skipped.
+        }
+
+        const timeline = await getRawTimeline(matchId, userId);
 
         const participants = match.info.participants as Array<
             (typeof match.info.participants)[number] & { individualPosition?: string; teamPosition?: string }
@@ -306,6 +419,17 @@ export async function getMatchesListController(puuid: string, type: "all" | "ran
   const cacheKey = `${puuid}:${type}`;
   const LIST_TTL_MS = 120_000;
 
+  // Resolve User ID for persistence
+  let userId: string | undefined;
+  try {
+    if (puuid) {
+        const user = await ensureUser({ riotPuuid: puuid });
+        userId = user.id;
+    }
+  } catch (e) {
+    logger.warn("[MatchController] Failed to ensure user in DB", { error: e });
+  }
+
   const entry = await matchCache.withMatchList(cacheKey, async (prev) => {
     const base = prev && prev.expiresAt > Date.now() ? prev : null;
     const data: MatchListItem[] = base?.data ? [...base.data] : [];
@@ -319,10 +443,6 @@ export async function getMatchesListController(puuid: string, type: "all" | "ran
       pages++;
       
       const region = "europe";
-      // Redis Key: matchIds:{region}:{puuid}:{cursor} - TTL 5 min (300s) - Note: key logic assumes batch size is constant? 
-      // Actually user asked for `matchIds:${region}:${puuid}:15` (assuming 15 matches?). 
-      // Logic uses IDS_BATCH=20.
-      // Let's use `matchIds:${region}:${puuid}:${cursor}` as key to be safe for pagination.
       
       const ids = await withRedisCache(
         `matchIds:${region}:${puuid}:${cursor}`,
@@ -348,7 +468,7 @@ export async function getMatchesListController(puuid: string, type: "all" | "ran
         await Promise.all(
           chunk.map(async (id) => {
             try {
-              const match = await getRawMatch(id);
+              const match = await getRawMatch(id, userId, puuid, 'metadata'); // Pass 'metadata' for persistence
               if (queues.length && !queues.includes(match.info.queueId)) return;
               const item = toListItem(match, puuid);
               data.push(item);
@@ -367,3 +487,5 @@ export async function getMatchesListController(puuid: string, type: "all" | "ran
 
   return { matches: entry.data, cursor: entry.cursor, exhausted: entry.exhausted };
 }
+
+

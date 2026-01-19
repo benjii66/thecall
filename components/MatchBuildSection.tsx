@@ -131,7 +131,7 @@ function BuildContent({
   delay: number;
 }) {
   const { t } = useLanguage();
-  const DD_VERSION = "14.18.1";
+  const DD_VERSION = "14.23.1";
   const itemIcon = (id: string) =>
     `https://ddragon.leagueoflegends.com/cdn/${DD_VERSION}/img/item/${id}.png`;
   const runeIcon = (path: string) =>
