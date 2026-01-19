@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 // GET /api/match/[id] - Détails complets d'un match
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchDetailsController } from "@/lib/controllers/matchController";

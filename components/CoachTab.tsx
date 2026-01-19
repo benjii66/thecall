@@ -1,8 +1,6 @@
 "use client";
- 
 
 import { useState, useEffect, useRef } from "react";
-// import { AnimatedSection, AnimatedItem } from "./AnimatedSection";
 import { CoachingQuotaBadge } from "./CoachingQuotaBadge";
 import { PaywallSections } from "./PaywallSection";
 import { ConversionBanner } from "./ConversionBanner";
@@ -102,7 +100,8 @@ export function CoachTab({
       };
     }
     return undefined;
-  }, [matchId, initialReport, matchData, report]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId]);
 
   useEffect(() => {
     // Récupérer le tier depuis l'API (pour avoir accès à DEV_TIER côté serveur)

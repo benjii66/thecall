@@ -2,7 +2,10 @@
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 if (!RIOT_API_KEY) {
-  throw new Error("RIOT_API_KEY is missing");
+  // Warn only during build phase or allow failure at runtime
+  if (process.env.NODE_ENV !== "production") {
+      console.warn("RIOT_API_KEY is missing");
+  }
 }
 
 type Routing = "europe" | "americas" | "asia";

@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { riotFetch } from "@/lib/riot";
 import { NextResponse } from "next/server";
 import { validateGameName, validateTagLine, sanitizeForUrl } from "@/lib/security";

@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 // GET /api/matches - Liste des matchs avec pagination intelligente
 import { NextResponse } from "next/server";
 import { getMatchesListController } from "@/lib/controllers/matchController";

@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 // API route pour changer le tier en mode développement (local uniquement)
 import { NextRequest, NextResponse } from "next/server";
 import { getCsrfTokenFromRequest, isSameOriginRequest, requiresCsrfProtection, validateCsrfToken } from "@/lib/csrf";

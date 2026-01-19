@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
       },
     ],
     // Optimisation activée pour améliorer les performances
-    // unoptimized: true, // ❌ Désactivé pour activer l'optimisation Next.js
+    unoptimized: true, // Enabled for reliable production capability with external images
   },
   // Headers de sécurité globaux
   async headers() {

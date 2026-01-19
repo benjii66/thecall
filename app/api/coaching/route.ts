@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 // POST /api/coaching - Génère rapport coaching (OpenAI premium ou heuristique free)
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchDetailsController } from "@/lib/controllers/matchController";

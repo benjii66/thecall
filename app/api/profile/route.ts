@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 // app/api/profile/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";

@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 // API route pour récupérer le tier utilisateur
 import { NextResponse } from "next/server";
 import { getUserTier, getUserTierLimits } from "@/lib/tier";
