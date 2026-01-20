@@ -13,6 +13,14 @@ import { useLanguage } from "@/lib/language";
 
 import type { PlayerProfile } from "@/types/profile";
 
+type ProfileMeta = {
+  quality: "premium" | "heuristic" | "heuristic_fallback";
+  aiUsed: boolean;
+  modelUsed?: string | null;
+  cached: boolean;
+  createdAt?: string;
+};
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ??
   (process.env.VERCEL_URL
@@ -22,6 +30,7 @@ const BASE_URL =
 export function ProfilePageUI() {
   const { t } = useLanguage();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const [meta, setMeta] = useState<ProfileMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; hint: string } | null>(null);
 
@@ -42,8 +51,9 @@ export function ProfilePageUI() {
           return;
         }
 
-        const json = (await res.json()) as { profile?: PlayerProfile };
+        const json = (await res.json()) as { profile?: PlayerProfile; meta?: ProfileMeta };
         setProfile(json.profile ?? null);
+        setMeta(json.meta ?? null);
         if (!json.profile) {
           setError({
             message: t("profile.unavailableDesc"),
@@ -122,23 +132,55 @@ export function ProfilePageUI() {
                     </p>
                   </div>
 
-                  <div className="flex gap-4">
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-                        {t("profile.mainRole")}
-                      </p>
-                      <p className="mt-1 text-2xl font-semibold text-cyan-300">
-                        {profile.mainRole}
-                      </p>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex gap-4">
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                          {t("profile.mainRole")}
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-cyan-300">
+                          {profile.mainRole}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                          {t("profile.winRate")}
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-emerald-300">
+                          {profile.overallWinRate}%
+                        </p>
+                      </div>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-                        {t("profile.winRate")}
-                      </p>
-                      <p className="mt-1 text-2xl font-semibold text-emerald-300">
-                        {profile.overallWinRate}%
-                      </p>
-                    </div>
+                  
+                    {/* META BADGES */}
+                    {meta && (
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {meta.quality === "premium" && (
+                           <div className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]">
+                             <span className="relative flex h-2 w-2">
+                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                               <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                             </span>
+                             AI Analysis {meta.modelUsed ? `(${meta.modelUsed})` : ""}
+                           </div>
+                        )}
+                        {(meta.quality === "heuristic" || meta.quality === "heuristic_fallback") && (
+                           <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300">
+                             🧠 Standard
+                           </div>
+                        )}
+                        {meta.cached && (
+                           <div className="inline-flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-medium text-yellow-300">
+                             ⚡ Cached
+                           </div>
+                        )}
+                        {meta.createdAt && (
+                           <div className="text-xs text-white/30">
+                             {new Date(meta.createdAt).toLocaleDateString()}
+                           </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

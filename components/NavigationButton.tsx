@@ -47,7 +47,14 @@ export function NavigationButton({
       >
         {/* Glow effect on hover */}
         <motion.div
-          className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-500/30 to-cyan-500/0 opacity-0 group-hover:opacity-100"
+           className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"
+           initial={{ x: "-100%" }}
+           whileHover={{ x: "100%" }}
+           transition={{ duration: 0.6, ease: "easeInOut" }}
+        />
+        {/* Subtle static glow */}
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-500/10 to-cyan-500/0 opacity-0 group-hover:opacity-100"
           initial={false}
           transition={{ duration: 0.3 }}
         />

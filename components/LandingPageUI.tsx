@@ -59,8 +59,11 @@ export function LandingPageUI() {
         </div>
 
         {/* HERO */}
-        <div className="rounded-3xl border border-white/10 bg-white/4 p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] backdrop-blur-md lg:flex lg:items-center lg:justify-between lg:gap-10">
-          <div className="flex-1">
+        <div className="relative rounded-3xl border border-white/10 bg-white/4 p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] backdrop-blur-md lg:flex lg:items-center lg:justify-between lg:gap-10 overflow-hidden">
+             {/* Ambient Glow */}
+             <div className="pointer-events-none absolute -top-24 -left-20 h-96 w-96 rounded-full bg-cyan-500/20 blur-[100px] opacity-40 mix-blend-screen" />
+             
+          <div className="relative flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/50">
               {t("landing.tagline")}
             </p>

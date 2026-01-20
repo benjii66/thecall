@@ -27,6 +27,11 @@ model User {
   riotTagLine      String?
   riotRegion       String?   // ex: EUW1
   
+  // Cache / Sync
+  lastMatchIdSeen         String?
+  lastCheckedAt           DateTime?
+  profileAggregateVersion String? // ex: "fv1"
+  
   stripeCustomerId String?   @unique
   tier             String?   @default("free") // free/pro
 
@@ -36,6 +41,7 @@ model User {
   matches       Match[]
   usage         Usage?
   subscription  Subscription?
+  profileCoachingReports ProfileCoachingReport[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -146,4 +152,22 @@ model Subscription {
   cancelAtPeriodEnd  Boolean   @default(false)
 
   updatedAt          DateTime  @updatedAt
+}
+
+model ProfileCoachingReport {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  matchesFingerprint String   // SHA1 of last 20 match IDs joined by "|"
+  version           String   @default("v1")
+  quality           String   // "premium" | "heuristic" | "heuristic_fallback"
+  
+  reportJson        Json     // Stores insights and playstyle
+  modelUsed         String?
+  
+  createdAt         DateTime @default(now())
+
+  @@unique([userId, matchesFingerprint, version])
+  @@index([userId, matchesFingerprint])
 }

@@ -1,21 +1,28 @@
-export const runtime = "nodejs";
-// app/api/profile/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
+
+
 import { riotFetch } from "@/lib/riot";
 import { getRawMatch, getRawTimeline } from "@/lib/controllers/matchController";
 import type { RiotMatch, RiotTimeline } from "@/lib/riotTypes";
 import type { PlayerProfile, RoleStats } from "@/types/profile";
 import { extractTimelineEvents } from "@/lib/parseTimelineEvents";
 import { logger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
+import crypto from "crypto";
+import { getUserTier } from "@/lib/tier";
+import { generateProfileReportStrict } from "@/lib/openai";
+
+import { hashFeatures, getCachedAiProfile, setCachedAiProfile } from "@/lib/profileAiCache";
+import { ensureUser } from "@/lib/db/ensureUser";
+import { getProfileAggregate } from "@/lib/profileAggregateCache";
+import { profileSchema } from "@/lib/validations/api";
+import * as Sentry from "@sentry/nextjs";
+
+export const runtime = "nodejs";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-function safeNumber(n: unknown, fallback = 0) {
-  return typeof n === "number" && Number.isFinite(n) ? n : fallback;
-}
+// --- Helper Functions ---
 
 function formatKDA(k: number, d: number, a: number) {
   return `${k}/${d}/${a}`;
@@ -31,300 +38,12 @@ function roleLabel(pos: string) {
   return p || "—";
 }
 
-async function analyzeAllMatches(puuid: string): Promise<PlayerProfile> {
-  // On va utiliser uniquement les matchs déjà en cache
-  // Pour avoir les IDs, on peut les récupérer depuis le cache ou skip cette étape
-  
-  // Pour l'instant, on va récupérer les IDs (1 seul appel API, nécessaire)
-  // Mais on ne fetchra AUCUN match (uniquement cache)
-  const matchIds = await riotFetch<string[]>(
-    `/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=50`,
-    "europe"
-  );
-
-  const matches: Array<{
-    match: RiotMatch;
-    timeline?: RiotTimeline;
-    me: {
-      role: string;
-      champion: string;
-      win: boolean;
-      kda: string;
-      k: number;
-      d: number;
-      a: number;
-      kp: number;
-      gold: number;
-    };
-  }> = [];
-
-  // Resolve userId for DB cache access
-  let userId: string | undefined;
-  try {
-    const user = await import("@/lib/db/ensureUser").then(m => m.ensureUser({ riotPuuid: puuid }));
-    userId = user.id;
-  } catch (e) {
-    logger.warn("Failed to resolve userId for profile", { error: e });
-  }
-
-  // Utiliser le controller pour récupérer les matchs (Redis ou API)
-  // On réduit à 10 derniers matchs pour éviter le timeout Vercel (fonction serverless limite 10s default)
-  const matchesToAnalyze = matchIds.slice(0, 10); 
-
-  // Traitement par lots pour contrôler la concurrence
-  const CHUNK_SIZE = 5;
-  
-  for (let i = 0; i < matchesToAnalyze.length; i += CHUNK_SIZE) {
-    const chunk = matchesToAnalyze.slice(i, i + CHUNK_SIZE);
-    
-    await Promise.all(
-      chunk.map(async (id) => {
-        try {
-          const match = await getRawMatch(id, userId);
-          // Timeline est optionnelle pour le profil de base mais utile pour les stats avancées
-          // On essaie de la récupérer mais on continue sans si erreur
-          let timeline: RiotTimeline | null = null;
-          try {
-             timeline = await getRawTimeline(id, userId);
-          } catch (e) {
-             logger.warn(`Failed to fetch timeline for ${id}`, { error: e });
-          }
-
-          const participants = match.info.participants as Array<
-            (typeof match.info.participants)[number] & { individualPosition?: string }
-          >;
-
-          const meRaw = participants.find((p) => p.puuid === puuid);
-          if (!meRaw) return;
-
-          const myTeamId = meRaw.teamId;
-          const ally = participants.filter((p) => p.teamId === myTeamId);
-          const allyKills = ally.reduce((sum, p) => sum + safeNumber(p.kills), 0);
-          const myKP =
-            allyKills > 0
-              ? Math.round(
-                  ((safeNumber(meRaw.kills) + safeNumber(meRaw.assists)) /
-                    allyKills) *
-                    100
-                )
-              : 0;
-
-          matches.push({
-            match,
-            timeline: timeline ?? undefined,
-            me: {
-              role: roleLabel(meRaw.teamPosition || meRaw.individualPosition || ""),
-              champion: meRaw.championName,
-              win: Boolean(meRaw.win),
-              kda: formatKDA(
-                safeNumber(meRaw.kills),
-                safeNumber(meRaw.deaths),
-                safeNumber(meRaw.assists)
-              ),
-              k: safeNumber(meRaw.kills),
-              d: safeNumber(meRaw.deaths),
-              a: safeNumber(meRaw.assists),
-              kp: myKP,
-              gold: safeNumber(meRaw.goldEarned),
-            },
-          });
-        } catch (err) {
-          logger.warn(`Error loading match ${id} for profile`, { error: err });
-        }
-      })
-    );
-  }
-
-  if (!matches.length) {
-    // Si vraiment aucun match n'a pu être chargé (API error ou nouveau compte)
-    return {
-        totalGames: 0,
-        overallWinRate: 0,
-        mainRole: "—",
-        roleStats: [],
-        playstyle: { aggression: "medium", objectiveFocus: "medium", teamFightPresence: "medium", description: "Pas assez de données." },
-        insights: [],
-        trends: { recentWinRate: 0, recentGames: 0, improving: false }
-    };
-  }
-
-  logger.debug(`[profile] Analysing ${matches.length} matches`);
-
-  // Calculer les stats par rôle
-  // Type intermédiaire pour la construction des stats
-  type RoleStatsBuilder = {
-    role: string;
-    games: number;
-    wins: number;
-    losses: number;
-    totalK: number;
-    totalD: number;
-    totalA: number;
-    totalKP: number;
-    totalGold: number;
-    champions: Map<string, { games: number; wins: number }>;
-  };
-  
-  const roleMap = new Map<string, RoleStatsBuilder>();
-
-  for (const { me } of matches) {
-    const existing = roleMap.get(me.role) || {
-      role: me.role,
-      games: 0,
-      wins: 0,
-      losses: 0,
-      totalK: 0,
-      totalD: 0,
-      totalA: 0,
-      totalKP: 0,
-      totalGold: 0,
-      champions: new Map<string, { games: number; wins: number }>(),
-    };
-
-    existing.games++;
-    if (me.win) existing.wins++;
-    else existing.losses++;
-    existing.totalK += me.k;
-    existing.totalD += me.d;
-    existing.totalA += me.a;
-    existing.totalKP += me.kp;
-    existing.totalGold += me.gold;
-
-    const champ = existing.champions.get(me.champion) || { games: 0, wins: 0 };
-    champ.games++;
-    if (me.win) champ.wins++;
-    existing.champions.set(me.champion, champ);
-
-    roleMap.set(me.role, existing);
-  }
-
-  const roleStats: RoleStats[] = Array.from(roleMap.values()).map((r) => {
-    const avgK = r.totalK / r.games;
-    const avgD = r.totalD / r.games;
-    const avgA = r.totalA / r.games;
-    const champions = Array.from(r.champions.entries())
-      .map(([champ, stats]) => ({
-        champion: champ,
-        games: stats.games,
-        winRate: Math.round((stats.wins / stats.games) * 100),
-      }))
-      .sort((a, b) => b.games - a.games)
-      .slice(0, 5);
-
-    return {
-      role: r.role,
-      games: r.games,
-      wins: r.wins,
-      losses: r.losses,
-      winRate: Math.round((r.wins / r.games) * 100),
-      avgKDA: formatKDA(Math.round(avgK), Math.round(avgD), Math.round(avgA)),
-      avgKP: Math.round(r.totalKP / r.games),
-      avgGold: Math.round(r.totalGold / r.games),
-      mostPlayedChampions: champions,
-    };
-  });
-
-  // Trouver le rôle principal
-  const mainRole = roleStats.sort((a, b) => b.games - a.games)[0]?.role || "—";
-
-  // Calculer win rate global
-  const totalWins = matches.filter((m) => m.me.win).length;
-  const overallWinRate = Math.round((totalWins / matches.length) * 100);
-
-  // Analyser le playstyle (aggression, objectifs, team fights)
-  let totalDeaths = 0;
-  let totalObjectives = 0;
-  let totalKP = 0;
-  const totalGames = matches.length;
-
-  for (const { me, timeline, match } of matches) {
-    totalDeaths += me.d;
-    totalKP += me.kp;
-
-      if (timeline) {
-        const events = extractTimelineEvents(match, timeline, puuid);
-      const objectives = events.filter(
-        (e) => e.kind === "dragon" || e.kind === "herald" || e.kind === "baron"
-      );
-      const allyObjectives = objectives.filter((e) => e.team === "ally").length;
-      totalObjectives += allyObjectives;
-    }
-  }
-
-  const avgDeaths = totalDeaths / totalGames;
-  const avgObjectives = totalObjectives / totalGames;
-  const avgKPGlobal = totalKP / totalGames;
-
-  // Calculs basés sur des seuils réalistes LoL
-  // Agression : basée sur les morts moyennes
-  // - Low: < 4 morts/game (safe, défensif)
-  // - Medium: 4-6 morts/game (équilibré)
-  // - High: > 6 morts/game (agressif, prend des risques)
-  const aggression: "low" | "medium" | "high" =
-    avgDeaths > 6 ? "high" : avgDeaths > 4 ? "medium" : "low";
-
-  // Focus objectifs : basé sur le nombre moyen d'objectifs pris par game
-  // - Low: < 2 objectifs/game (néglige les objectifs)
-  // - Medium: 2-3 objectifs/game (équilibré)
-  // - High: > 3 objectifs/game (excellent focus objectifs)
-  const objectiveFocus: "low" | "medium" | "high" =
-    avgObjectives > 3 ? "high" : avgObjectives > 2 ? "medium" : "low";
-
-  // Présence team fights : basée sur le KP moyen
-  // - Low: < 45% KP (peu présent en fights)
-  // - Medium: 45-60% KP (présent)
-  // - High: > 60% KP (très présent, bon roams/rotations)
-  const teamFightPresence: "low" | "medium" | "high" =
-    avgKPGlobal > 60 ? "high" : avgKPGlobal > 45 ? "medium" : "low";
-
-  // Générer les insights avec IA
-  const insights = await generateProfileInsights(
-    roleStats,
-    mainRole,
-    aggression,
-    objectiveFocus,
-    teamFightPresence,
-    overallWinRate
-  );
-
-  // Tendances récentes (10 derniers matchs)
-  const recentMatches = matches.slice(0, 10);
-  const recentWins = recentMatches.filter((m) => m.me.win).length;
-  const recentWinRate = Math.round((recentWins / recentMatches.length) * 100);
-  const improving = recentWinRate > overallWinRate;
-
-  return {
-    totalGames: matches.length,
-    overallWinRate,
-    mainRole,
-    roleStats,
-    playstyle: {
-      aggression,
-      objectiveFocus,
-      teamFightPresence,
-      description: generatePlaystyleDescription(
-        aggression,
-        objectiveFocus,
-        teamFightPresence
-      ),
-    },
-    insights,
-    trends: {
-      recentWinRate,
-      recentGames: recentMatches.length,
-      improving,
-    },
-  };
-}
-
 function generatePlaystyleDescription(
   aggression: "low" | "medium" | "high",
   objectiveFocus: "low" | "medium" | "high",
   teamFightPresence: "low" | "medium" | "high"
 ): string {
   const parts: string[] = [];
-  
-  // Agression
   if (aggression === "high") {
     parts.push("style très agressif (beaucoup de risques pris)");
   } else if (aggression === "medium") {
@@ -333,123 +52,18 @@ function generatePlaystyleDescription(
     parts.push("style safe et défensif");
   }
   
-  // Objectifs
   if (objectiveFocus === "high") {
     parts.push("excellent focus sur les objectifs");
   } else if (objectiveFocus === "low") {
     parts.push("objectifs souvent négligés");
   }
   
-  // Team fights
   if (teamFightPresence === "high") {
     parts.push("très présent en team fights");
   } else if (teamFightPresence === "low") {
     parts.push("peu présent lors des engagements");
   }
-  
   return parts.join(". ") + ".";
-}
-
-async function generateProfileInsights(
-  roleStats: RoleStats[],
-  mainRole: string,
-  aggression: "low" | "medium" | "high",
-  objectiveFocus: "low" | "medium" | "high",
-  teamFightPresence: "low" | "medium" | "high",
-  winRate: number
-): Promise<PlayerProfile["insights"]> {
-  if (!OPENAI_API_KEY) {
-    // Fallback heuristique
-    return generateHeuristicInsights(
-      roleStats,
-      mainRole,
-      aggression,
-      objectiveFocus,
-      teamFightPresence,
-      winRate
-    );
-  }
-
-  try {
-    const prompt = `Analyse ce profil de joueur League of Legends et génère des insights personnalisés.
-
-**Rôle principal**: ${mainRole}
-**Win rate global**: ${winRate}%
-**Style de jeu**:
-- Agression: ${aggression}
-- Focus objectifs: ${objectiveFocus}
-- Présence team fights: ${teamFightPresence}
-
-**Stats par rôle**:
-${roleStats
-  .map(
-    (r) =>
-      `- ${r.role}: ${r.games} games, ${r.winRate}% win rate, KDA ${r.avgKDA}, KP ${r.avgKP}%`
-  )
-  .join("\n")}
-
-Génère 4-6 insights au format JSON:
-[
-  {
-    "type": "strength" | "weakness" | "recommendation",
-    "title": "Titre court",
-    "description": "Description détaillée avec explication du pourquoi",
-    "priority": "high" | "medium" | "low",
-    "data": [{"label": "Stat", "value": "Valeur"}]
-  }
-]
-
-Exemples:
-- Si agression high + objectifs low → "Tu joues agressif mais tu négliges les objectifs"
-- Si win rate bas sur un rôle → "Ton win rate sur [rôle] est perfectible"
-- Si KP bas → "Ta présence en team fights est faible"
-
-Réponds UNIQUEMENT avec le JSON, pas de texte avant/après.`;
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: `Tu es TheCall, un coach League of Legends expert. Tu analyses les profils de joueurs et génères des insights actionnables basés sur leurs stats et leur style de jeu.`,
-          },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-      }),
-    });
-
-    if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
-
-    const data = (await response.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-
-    const content = data.choices[0]?.message?.content;
-    if (!content) throw new Error("No content");
-
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error("No JSON found");
-
-    return JSON.parse(jsonMatch[0]) as PlayerProfile["insights"];
-  } catch (error) {
-    logger.error("Profile insights error", error);
-    return generateHeuristicInsights(
-      roleStats,
-      mainRole,
-      aggression,
-      objectiveFocus,
-      teamFightPresence,
-      winRate
-    );
-  }
 }
 
 function generateHeuristicInsights(
@@ -462,121 +76,606 @@ function generateHeuristicInsights(
 ): PlayerProfile["insights"] {
   const insights: PlayerProfile["insights"] = [];
 
-  // Insight 1: Agression vs Objectifs
   if (aggression === "high" && objectiveFocus === "low") {
     insights.push({
       type: "recommendation",
       title: "Ajuste ton agressivité",
-      description:
-        "Tu joues très agressif (beaucoup de morts) mais tu négliges les objectifs. Réduis les risques inutiles et priorise la vision + setup avant les drakes/herald.",
+      description: "Tu joues très agressif (beaucoup de morts) mais tu négliges les objectifs. Réduis les risques inutiles et priorise la vision.",
       priority: "high",
-      data: [
-        { label: "Agression", value: "Élevée" },
-        { label: "Focus objectifs", value: "Faible" },
-      ],
+      data: [{ label: "Agression", value: "Élevée" }]
     });
   }
 
-  // Insight 2: Win rate global
   if (winRate < 45) {
     insights.push({
       type: "weakness",
       title: "Win rate à améliorer",
-      description: `Ton win rate global est de ${winRate}%. Concentre-toi sur ${mainRole} où tu es le plus à l'aise et évite les rôles où tu performes moins.`,
-      priority: "high",
-      data: [{ label: "Win rate", value: `${winRate}%` }],
+      description: `Ton win rate global est de ${winRate}%. Concentre-toi sur ${mainRole}.`,
+      priority: "high"
     });
   } else if (winRate > 55) {
     insights.push({
       type: "strength",
-      title: "Bonne performance globale",
-      description: `Avec ${winRate}% de win rate, tu es sur la bonne voie. Continue à te concentrer sur ${mainRole} pour maintenir ce niveau.`,
-      priority: "low",
-      data: [{ label: "Win rate", value: `${winRate}%` }],
+      title: "Bonne performance",
+      description: `Avec ${winRate}% de win rate, tu es sur la bonne voie.`,
+      priority: "low"
     });
   }
 
-  // Insight 3: Présence team fights
   if (teamFightPresence === "low") {
     insights.push({
       type: "recommendation",
       title: "Augmente ta présence",
-      description:
-        "Ton KP moyen est faible. Sois plus présent lors des team fights et rotations. Priorise les roams et la vision pour être au bon endroit au bon moment.",
-      priority: "medium",
-      data: [{ label: "KP moyen", value: "Faible" }],
+      description: "Ton KP moyen est faible. Sois plus présent lors des team fights.",
+      priority: "medium"
     });
   }
 
-  // Insight 4: Rôle principal
   const mainRoleStats = roleStats.find((r) => r.role === mainRole);
   if (mainRoleStats && mainRoleStats.winRate < 50) {
     insights.push({
       type: "weakness",
       title: `${mainRole} à optimiser`,
-      description: `Sur ${mainRole} (ton rôle principal), ton win rate est de ${mainRoleStats.winRate}%. Analyse tes replays pour identifier les erreurs récurrentes.`,
-      priority: "high",
-      data: [
-        { label: "Rôle", value: mainRole },
-        { label: "Win rate", value: `${mainRoleStats.winRate}%` },
-      ],
+      description: `Sur ${mainRole}, ton win rate est de ${mainRoleStats.winRate}%.`,
+      priority: "high"
     });
   }
 
   return insights;
 }
 
-export async function GET(req: NextRequest) {
-  // Rate limiting
-  const identifier = getRateLimitIdentifier(req);
-  const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.default);
-  
-  if (!rateLimit.allowed) {
-    const response = NextResponse.json(
-      { 
-        error: "Rate limit exceeded",
-        message: "Trop de requêtes. Merci de patienter quelques instants.",
-        resetAt: new Date(rateLimit.resetAt).toISOString(),
-      },
-      { status: 429 }
-    );
-    response.headers.set("X-RateLimit-Limit", String(RATE_LIMITS.default.maxRequests));
-    response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
-    response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
-    response.headers.set("Retry-After", String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)));
-    return response;
-  }
+// --- Core Logic ---
 
-  const { searchParams } = new URL(req.url);
-  
-  // Cookie puuid
-  const cookieStore = await cookies();
-  const cookiePuuid = cookieStore.get("user_puuid")?.value;
+// Options for fetching
+type FetchOptions = {
+    skipRiotCheck?: boolean; // If true, only read DB/Compute
+    forceRiotCheck?: boolean; // If true, definitely check Riot
+};
 
-  // Dev fallback strictly controlled
-  const devPuuid = process.env.NODE_ENV === "development" ? process.env.MY_PUUID : undefined;
-
-  const puuid =
-    searchParams.get("puuid") ||
-    cookiePuuid ||
-    devPuuid ||
-    "";
-
-  if (!puuid) {
-    return NextResponse.json(
-      { error: "Missing puuid" },
-      { status: 400 }
-    );
-  }
+export async function computeProfileData(puuid: string, options: FetchOptions = {}): Promise<{ profile: PlayerProfile; meta: any }> {
+  // Ensure user exists and get IDs
+  let userId: string | undefined;
+  let lastMatchIdSeen: string | undefined;
 
   try {
-    const profile = await analyzeAllMatches(puuid);
-    return NextResponse.json({ profile }, { status: 200 });
-  } catch (err) {
-    logger.error("PROFILE ROUTE ERROR", err);
-    return NextResponse.json(
-      { error: "Service temporarily unavailable" },
-      { status: 500 }
-    );
+    const user = await ensureUser({ riotPuuid: puuid });
+    userId = user.id;
+    lastMatchIdSeen = user.lastMatchIdSeen || undefined;
+  } catch (e) {
+    logger.warn("Failed to resolve userId for profile", { error: e });
+  }
+
+  // 1. Determine Matches to Analyze
+  // If skipRiotCheck is true, we ONLY look at DB.
+  // If we must check Riot, we fetch IDs.
+
+  let rawMatches: { match: RiotMatch; timeline?: RiotTimeline; matchId: string }[] = [];
+  const matchesToFetch = 20;
+
+  if (!options.skipRiotCheck) {
+      // Check Riot for new matches
+      try {
+          const matchIds = await riotFetch<string[]>(`/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=${matchesToFetch}`, "europe");
+          
+          if (matchIds.length > 0) {
+             const latestId = matchIds[0];
+             // If we have seen this match, we MIGHT not need to fetch, BUT computeProfileData is called when we assume we need to update OR sync.
+             // If we are forced to check, we check.
+             
+             if (latestId !== lastMatchIdSeen) {
+                 // Fetch details and persist
+                 // This acts as the "Ingest" phase
+                  await Promise.all(matchIds.map(async id => {
+                     try {
+                         // getRawMatch handles persistence
+                         await getRawMatch(id, userId, puuid, 'full'); 
+                         await getRawTimeline(id, userId);
+                     } catch (e) { logger.warn(`Failed to ingest match ${id}`, { error: e }); }
+                  }));
+
+                  // Update User's lastMatchIdSeen
+                  if (userId) {
+                      await prisma.user.update({
+                          where: { id: userId },
+                          data: { lastMatchIdSeen: latestId }
+                      });
+                  }
+             }
+          }
+      } catch (e) {
+          logger.error("Riot API failed in computeProfileData", e);
+      }
+  }
+
+  // Fetch from DB (now updated)
+  if (userId) {
+    try {
+      const dbMatches = await prisma.match.findMany({
+        where: { userId, hasMatchJson: true },
+        orderBy: { gameCreation: 'desc' },
+        take: matchesToFetch
+      });
+      if (dbMatches.length > 0) {
+         rawMatches = dbMatches.map(m => ({ 
+             match: m.matchJson as unknown as RiotMatch, 
+             timeline: m.timelineJson ? (m.timelineJson as unknown as RiotTimeline) : undefined,
+             matchId: m.matchId 
+         }));
+      }
+    } catch (e) { logger.error("DB Fetch failed", e); }
+  }
+
+  // Fallback if DB empty (e.g. ensureUser new user, Riot failed above?)
+  // If rawMatches empty and we skipped Riot, try Riot now?
+  if (rawMatches.length === 0 && options.skipRiotCheck) {
+      // Logic: cache was missing, but DB is also empty? 
+      // This is a cold start on a new user or cleaned DB.
+      // We must force recursion or inline fetch.
+      return computeProfileData(puuid, { ...options, skipRiotCheck: false });
+  }
+
+  // If still empty (Riot also failed or no games), return empty
+  if (rawMatches.length === 0) {
+      return {
+          profile: {
+              totalGames: 0, overallWinRate: 0, mainRole: "—", roleStats: [],
+              playstyle: { aggression: "medium", objectiveFocus: "medium", teamFightPresence: "medium", description: "Pas assez de données." },
+              insights: [], trends: { recentWinRate: 0, recentGames: 0, improving: false }
+          },
+          meta: { quality: "heuristic", aiUsed: false }
+      };
+  }
+
+  // --- Aggregation Logic (Same as before) ---
+  const matches: any[] = [];
+  
+  for (const raw of rawMatches) {
+     const { match, timeline, matchId } = raw;
+     const participants = match.info.participants as any[];
+     const meRaw = participants.find((p: any) => p.puuid === puuid);
+     if (!meRaw) continue;
+
+     const myTeamId = meRaw.teamId;
+     const allyKills = participants.filter((p: any) => p.teamId === myTeamId).reduce((s: number, p: any) => s + (p.kills||0), 0);
+     const myKP = allyKills > 0 ? Math.round(((meRaw.kills + meRaw.assists) / allyKills) * 100) : 0;
+
+     let objectives = 0;
+     if (timeline) {
+        const events = extractTimelineEvents(match, timeline, puuid);
+        objectives = events.filter(e => (e.kind === 'dragon' || e.kind === 'baron' || e.kind === 'herald') && e.team === 'ally').length;
+     }
+
+     matches.push({
+         matchId,
+         me: {
+             role: roleLabel(meRaw.teamPosition || meRaw.individualPosition),
+             champion: meRaw.championName,
+             win: meRaw.win,
+             kda: formatKDA(meRaw.kills, meRaw.deaths, meRaw.assists),
+             k: meRaw.kills, d: meRaw.deaths, a: meRaw.assists,
+             kp: myKP, gold: meRaw.goldEarned,
+             deaths: meRaw.deaths, objectives
+         }
+     });
+  }
+
+  const roleMap = new Map<string, any>();
+  let totalDeaths = 0, totalObjectives = 0, totalKP = 0;
+
+  for (const { me } of matches) {
+      const r = roleMap.get(me.role) || { role: me.role, games: 0, wins: 0, k:0, d:0, a:0, kp:0, gold:0, champs: new Map() };
+      r.games++;
+      if (me.win) r.wins++;
+      r.k += me.k; r.d += me.d; r.a += me.a; r.kp += me.kp; r.gold += me.gold;
+      
+      const c = r.champs.get(me.champion) || { games: 0, wins: 0 };
+      c.games++; if(me.win) c.wins++;
+      r.champs.set(me.champion, c);
+      roleMap.set(me.role, r);
+
+      totalDeaths += me.deaths;
+      totalObjectives += me.objectives;
+      totalKP += me.kp;
+  }
+
+  const roleStats: RoleStats[] = Array.from(roleMap.values()).map(r => ({
+      role: r.role,
+      games: r.games,
+      wins: r.wins,
+      losses: r.games - r.wins,
+      winRate: Math.round((r.wins / r.games) * 100),
+      avgKDA: formatKDA(Math.round(r.k/r.games), Math.round(r.d/r.games), Math.round(r.a/r.games)),
+      avgKP: Math.round(r.kp/r.games),
+      avgGold: Math.round(r.gold/r.games),
+      mostPlayedChampions: Array.from(r.champs.entries()).map(([n, s]: any) => ({
+          champion: n, games: s.games, winRate: Math.round((s.wins/s.games)*100)
+      })).sort((a: any, b: any) => b.games - a.games).slice(0, 5)
+  }));
+
+  const overallWinRate = matches.length > 0 ? Math.round((matches.filter(m => m.me.win).length / matches.length) * 100) : 0;
+  const mainRole = roleStats.sort((a, b) => b.games - a.games)[0]?.role || "—";
+  
+  const avgDeaths = matches.length > 0 ? totalDeaths / matches.length : 0;
+  const avgObjectives = matches.length > 0 ? totalObjectives / matches.length : 0;
+  const avgKPGlobal = matches.length > 0 ? totalKP / matches.length : 0;
+
+  const aggression = avgDeaths > 6 ? "high" : avgDeaths > 4 ? "medium" : "low";
+  const objectiveFocus = avgObjectives > 3 ? "high" : avgObjectives > 2 ? "medium" : "low";
+  const teamFightPresence = avgKPGlobal > 60 ? "high" : avgKPGlobal > 45 ? "medium" : "low";
+
+  let insights: PlayerProfile["insights"] = [];
+  let playstyle: PlayerProfile["playstyle"] = {
+      aggression, objectiveFocus, teamFightPresence,
+      description: generatePlaystyleDescription(aggression, objectiveFocus, teamFightPresence)
+  };
+
+  let isAiGenerated = false;
+  let reportQuality = "heuristic";
+  let metaModel = null;
+  let reportCreatedAt = new Date(); // Only relevant if cached AI report found
+
+  
+  // --- AI Generation (Re-enabled with new Prompt) ---
+  
+  if (userId) {
+     const fingerprintIds = matches.map(m => m.matchId).filter(Boolean).sort().join("|");
+     const fingerprint = crypto.createHash('sha1').update(fingerprintIds).digest('hex');
+
+     const cachedReport = await prisma.profileCoachingReport.findFirst({
+         where: { userId, matchesFingerprint: fingerprint, version: 'v2' } // Bump version to v2
+     });
+
+     if (cachedReport) {
+         try {
+             // In Prisma, Json type is inferred as InputJsonValue key-value, need cast
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             const data = cachedReport.reportJson as any;
+             
+             // MAP v2 data to PlayerProfile structure
+             // Summary -> Playstyle description
+             if (data.summary) playstyle.description = data.summary;
+             
+             // Clear default insights
+             insights = [];
+
+             // Strengths
+             if (Array.isArray(data.strengths)) {
+                 data.strengths.forEach((s: any) => {
+                     insights.push({
+                         type: "strength",
+                         title: s.title,
+                         description: s.why_it_matters + (s.evidence?.length ? ` (Ex: ${s.evidence[0].metric} ${s.evidence[0].value})` : ""),
+                         priority: s.confidence === "high" ? "high" : "medium",
+                         data: s.evidence?.map((e: any) => ({ label: e.metric, value: e.value }))
+                     });
+                 });
+             }
+             
+             // Weaknesses
+             if (Array.isArray(data.weaknesses)) {
+                 data.weaknesses.forEach((w: any) => {
+                     insights.push({
+                         type: "weakness",
+                         title: w.title,
+                         description: w.impact + (w.evidence?.length ? ` (Ex: ${w.evidence[0].metric} ${w.evidence[0].value})` : ""),
+                         priority: w.confidence === "high" ? "high" : "medium",
+                         data: w.evidence?.map((e: any) => ({ label: e.metric, value: e.value }))
+                     });
+                 });
+             }
+
+             // Priorities
+             if (Array.isArray(data.top_3_priorities)) {
+                 data.top_3_priorities.forEach((p: any) => {
+                     insights.push({
+                         type: "recommendation",
+                         title: p.priority,
+                         description: `${p.quick_fix} ${p.drill}`,
+                         priority: "high"
+                     });
+                 });
+             }
+
+             isAiGenerated = cachedReport.quality === 'premium';
+             reportQuality = cachedReport.quality;
+             metaModel = cachedReport.modelUsed;
+             reportCreatedAt = cachedReport.createdAt;
+         } catch (e) {
+             logger.error("Failed to parse cached profile report", e);
+         }
+     } else {
+         // Generate AI
+         const userTier = await getUserTier(userId);
+         const isPro = userTier === 'pro';
+         
+         if (isPro && OPENAI_API_KEY) {
+             try {
+                // --- 1. Feature Engineering ---
+                
+                // Helper to compute rate (0-1) and label
+                const calcFreq = (count: number, total: number) => {
+                    if (!total) return { rate: 0, label: "rarely" };
+                    const rate = count / total;
+                    let label = "rarely";
+                    if (rate >= 0.55) label = "often";
+                    else if (rate >= 0.25) label = "sometimes";
+                    return { rate, label };
+                };
+
+                // Helper for Outliers (Simple Z-Score or threshold)
+                // We'll use simple percentiles or fixed logic for robustness
+                const outlierMatchIds: string[] = [];
+                const kdaValues = matches.map(m => (m.me.k + m.me.a) / Math.max(1, m.me.d));
+                const kdaMean = kdaValues.reduce((a,b)=>a+b,0) / kdaValues.length || 0;
+                // Variance
+                const variance = kdaValues.reduce((sq, n) => sq + Math.pow(n - kdaMean, 2), 0) / kdaValues.length;
+                const stdDev = Math.sqrt(variance);
+
+                // Identify outliers (> 2.5 sigma)
+                matches.forEach((m, idx) => {
+                    const kda = kdaValues[idx];
+                    if (Math.abs(kda - kdaMean) > 2.5 * stdDev && stdDev > 0.5) {
+                        outlierMatchIds.push(m.matchId);
+                    }
+                });
+
+                // Compute behavioral metrics
+                // "High Deaths": > 6 deaths (arbitrary heuristic for "bad game")
+                // "Low KP": < 30%
+                // "High Objectives": > 2
+                const highDeathCount = matches.filter(m => m.me.deaths > 6).length;
+                const highDeathFreq = calcFreq(highDeathCount, matches.length);
+
+                const lowKpCount = matches.filter(m => m.me.kp < 30).length;
+                const lowKpFreq = calcFreq(lowKpCount, matches.length);
+                
+                const highObjCount = matches.filter(m => m.me.objectives >= 3).length;
+                const highObjFreq = calcFreq(highObjCount, matches.length);
+
+                // Confidence
+                // High: 15+ matches AND variance not insane
+                // Medium: 8-14
+                // Low: < 8
+                let confidence = "low";
+                if (matches.length >= 15) confidence = "high";
+                else if (matches.length >= 8) confidence = "medium";
+
+                // Construct comprehensive features object
+                const features = {
+                    matches_count: matches.length,
+                    overall_win_rate: overallWinRate,
+                    role_stats: roleStats,
+                    metrics: {
+                         high_deaths: { ...highDeathFreq, threshold: ">6" },
+                         low_kp: { ...lowKpFreq, threshold: "<30%" },
+                         high_objectives: { ...highObjFreq, threshold: ">=3" }
+                    },
+                    avg_kda: matches.length > 0 ? {
+                        k: Number((matches.reduce((s, m) => s+m.me.k,0)/matches.length).toFixed(1)),
+                        d: Number((matches.reduce((s, m) => s+m.me.d,0)/matches.length).toFixed(1)),
+                        a: Number((matches.reduce((s, m) => s+m.me.a,0)/matches.length).toFixed(1))
+                    } : null,
+                    avg_kp: avgKPGlobal,
+                    avg_objectives: avgObjectives,
+                    outliers: outlierMatchIds,
+                    confidence_level: confidence
+                };
+
+                // --- 2. Cache Check ---
+                const featHash = hashFeatures(features);
+                let reportJson = await getCachedAiProfile(puuid, featHash);
+                let modelUsed = "cache";
+
+                if (!reportJson) {
+                    // Cache MISS -> Generate
+                    const thresholds = {
+                        min_matches_for_high_confidence: 15, // Aligned with logic above
+                        freq_often: 0.55,
+                        freq_sometimes: 0.25,
+                        significant_delta: 0.10
+                    };
+
+                    const systemPrompt = `You are generating a player profile summary from structured stats computed over the last N matches.
+
+CRITICAL RULES (DO NOT BREAK):
+1) Base your analysis PRIMARILY on the 'metrics' (rates/labels) and aggregated stats.
+2) Do not invent events or patterns not present in the input.
+3) Every recommendation MUST cite at least one evidence field (e.g. "You often die too much (High Death Rate: 45%)").
+4) Respect the pre-calculated labels ("rarely", "sometimes", "often"). Never say "always/never" unless rate > 0.8.
+5) If outlier matches are present, acknowledge them but do not over-weight them.
+6) If confidence_level is "low", use cautious language ("It seems like...", "Early data suggests...").
+
+YOUR TASK:
+Return a structured JSON object satisfying the provided schema.
+
+LANGUAGE:
+- concise
+- coaching-style but strictly grounded in data`;
+
+                    const userPrompt = JSON.stringify({
+                        thresholds,
+                        features,
+                         // We already embedded outliers/confidence in features, but can keep separate if needed by prompt logic.
+                         // Prompt instructions refer to input.
+                    });
+
+                    const res = await generateProfileReportStrict(systemPrompt, userPrompt);
+                    reportJson = res.reportJson;
+                    modelUsed = res.modelUsed;
+
+                    // Cache it
+                    await setCachedAiProfile(puuid, featHash, reportJson);
+                    
+                    // Also update DB persistence (optional, but good for history/debugging)
+                     await prisma.profileCoachingReport.upsert({
+                        where: {
+                             userId_matchesFingerprint_version: {
+                                 userId, matchesFingerprint: fingerprint, version: 'v3-stable'
+                             }
+                        },
+                        update: {
+                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            reportJson: reportJson as any // Only update content
+                        },
+                        create: {
+                            userId, 
+                            matchesFingerprint: fingerprint,
+                            version: 'v3-stable',
+                            reportJson: reportJson as any,
+                            quality: 'premium',
+                            modelUsed
+                        }
+                    });
+                }
+
+                // --- 3. Map Output ---
+                // Apply to current response (Use same mapping logic as above)
+                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 const data = reportJson as any;
+                 
+                 // Summary
+                 if (data.summary) playstyle.description = data.summary;
+                 
+                 // Clear heuristics
+                 insights = [];
+
+                 // Strengths
+                 if (Array.isArray(data.strengths)) {
+                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                     data.strengths.forEach((s: any) => {
+                         insights.push({
+                             type: "strength",
+                             title: s.title,
+                             description: s.why_it_matters + (s.evidence?.length ? ` (Ex: ${s.evidence[0].metric} ${s.evidence[0].value})` : ""),
+                             priority: s.confidence === "high" ? "high" : "medium",
+                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                             data: s.evidence?.map((e: any) => ({ label: e.metric, value: e.value }))
+                         });
+                     });
+                 }
+                 
+                 // Weaknesses
+                 if (Array.isArray(data.weaknesses)) {
+                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                     data.weaknesses.forEach((w: any) => {
+                         insights.push({
+                             type: "weakness",
+                             title: w.title,
+                             description: w.impact + (w.evidence?.length ? ` (Ex: ${w.evidence[0].metric} ${w.evidence[0].value})` : ""),
+                             priority: w.confidence === "high" ? "high" : "medium",
+                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                             data: w.evidence?.map((e: any) => ({ label: e.metric, value: e.value }))
+                         });
+                     });
+                 }
+
+                 // Priorities
+                 if (Array.isArray(data.top_3_priorities)) {
+                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                     data.top_3_priorities.forEach((p: any) => {
+                         insights.push({
+                             type: "recommendation",
+                             title: p.priority,
+                             description: `${p.quick_fix} ${p.drill}`,
+                             priority: "high"
+                         });
+                     });
+                 }
+
+                 isAiGenerated = true;
+                 reportQuality = 'premium';
+                 metaModel = modelUsed;
+
+             } catch (e) {
+                 logger.error("Failed to generate AI profile report", e);
+                 // Fallback to heuristic (already calculated)
+             }
+         } else {
+             // Heuristic (already calculated)
+             insights = generateHeuristicInsights(roleStats, mainRole, aggression, objectiveFocus, teamFightPresence, overallWinRate);
+         }
+     }
+  } else {
+      insights = generateHeuristicInsights(roleStats, mainRole, aggression, objectiveFocus, teamFightPresence, overallWinRate);
+  }
+
+
+  const profile: PlayerProfile = {
+    totalGames: matches.length,
+    overallWinRate,
+    mainRole,
+    roleStats,
+    playstyle,
+    insights,
+    trends: {
+      recentWinRate: matches.length > 0 ? Math.round((matches.slice(0,10).filter(m => m.me.win).length / Math.min(matches.length, 10))*100) : 0,
+      recentGames: Math.min(matches.length, 10),
+      improving: (matches.length > 0 ? Math.round((matches.slice(0,10).filter(m => m.me.win).length / Math.min(matches.length, 10))*100) : 0) > overallWinRate
+    }
+  };
+
+  return { 
+      profile, 
+      meta: { 
+          quality: reportQuality, 
+          aiUsed: isAiGenerated, 
+          modelUsed: metaModel, 
+          cached: false, // Calculated fresh (at this moment)
+          createdAt: reportCreatedAt.toISOString()
+      } 
+  };
+}
+
+// --- GET Handler ---
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    
+    // 1. Zod Validation
+    const parsed = profileSchema.safeParse({
+       puuid: searchParams.get("puuid") || "",
+       refresh: searchParams.get("refresh") // Zod will coerce "true" -> true
+    });
+
+    if (!parsed.success) {
+       return NextResponse.json({ error: "Invalid parameters", details: parsed.error.format() }, { status: 400 });
+    }
+    
+    const { puuid, refresh } = parsed.data;
+
+    // 2. Sentry Context
+    Sentry.setTag("puuid", puuid);
+
+    // 3. Check Profile Aggregate (Fastest Path)
+    // If refresh NOT requested, try to return valid cache
+    if (!refresh) {
+        const cachedAgg = await getProfileAggregate(puuid);
+        if (cachedAgg) {
+            return NextResponse.json({ ...cachedAgg, needsSync: false, source: "agg_cache" });
+        }
+    }
+
+    // 4. Stale/Fallback or Cold
+    // Return empty/stale with needsSync=true so frontend calls /api/sync/start
+    
+    const user = await prisma.user.findFirst({ where: { riotPuuid: puuid } });
+    if (!user) {
+         // return empty with needsSync=true
+         return NextResponse.json({ needsSync: true, source: "empty" });
+    }
+    
+    // User exists. Compute from DB (fast, no Riot).
+    try {
+        const data = await computeProfileData(puuid, { skipRiotCheck: true });
+        return NextResponse.json({ ...data, needsSync: true, source: "db_stale" });
+    } catch {
+        return NextResponse.json({ needsSync: true, source: "error_fallback" });
+    }
+
+  } catch (error) {
+    Sentry.captureException(error);
+    logger.error("Profile API Error", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

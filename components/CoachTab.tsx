@@ -31,7 +31,8 @@ export function CoachTab({
   initialTier,
 }: CoachTabProps) {
   const [report, setReport] = useState<CoachingReport | null>(initialReport);
-  const [loading, setLoading] = useState(false);
+  // Start loading immediately if we don't have a report, so Skeleton shows during hydration/mount
+  const [loading, setLoading] = useState(!initialReport);
   const [isCached, setIsCached] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,52 +57,70 @@ export function CoachTab({
   const loadingRef = useRef(false);
 
   useEffect(() => {
-    // Si pas de rapport initial, on le charge
-    if (!initialReport && matchId && !report) {
-      if (loadingRef.current) return;
-      
-      const controller = new AbortController();
-      loadingRef.current = true;
-      setLoading(true);
-      setError(null);
+    // If we have an initial report for this match, use it and don't fetch
+    if (initialReport) {
+      setReport(initialReport);
+      setLoading(false);
+      setIsCached(false);
+      return;
+    }
 
-      fetch("/api/coaching", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // On envoie matchData pour éviter que le serveur ne refasse un appel inutile
-        body: JSON.stringify({ matchId, matchData }),
-        signal: controller.signal
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error("Erreur de chargement service coaching");
-          const data = await res.json();
-          
-          if (data.report) {
-            // Update all state in one go if possible
-            if (data.quota) setQuota(data.quota);
-            if (data.cached) {
-                setIsCached(true);
-            }
-            setReport(data.report); 
+    // No initial report: clear previous state and fetch
+    setReport(null);
+    setLoading(true);
+    setError(null);
+    setIsCached(false);
+
+    let isActive = true;
+    const controller = new AbortController();
+    loadingRef.current = true;
+    const startTime = Date.now();
+    const MIN_LOADING_TIME = 2500; // 2.5s minimum "fun" time
+
+    fetch("/api/coaching", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Send matchData to avoid server-side re-fetch
+      body: JSON.stringify({ matchId, matchData }),
+      signal: controller.signal
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Erreur de chargement service coaching");
+        const data = await res.json();
+        
+        // Artificial delay if needed
+        const elapsed = Date.now() - startTime;
+        if (elapsed < MIN_LOADING_TIME) {
+            await new Promise(r => setTimeout(r, MIN_LOADING_TIME - elapsed));
+        }
+
+        if (isActive && data.report) {
+          if (data.quota) setQuota(data.quota);
+          if (data.cached) {
+              setIsCached(true);
           }
-        })
-        .catch((err) => {
-          if (err.name === 'AbortError') return;
-          setError("Le chargement a rencontré un problème. Merci de réessayer.");
-        })
-        .finally(() => {
+          setReport({ ...data.report, quality: data.quality });   
+        }
+      })
+      .catch((err) => {
+        if (!isActive) return;
+        if (err.name === 'AbortError') return;
+        console.error("Coaching fetch failed:", err);
+        setError("Le chargement a rencontré un problème. Merci de réessayer.");
+      })
+      .finally(() => {
+          if (isActive) {
             setLoading(false);
             loadingRef.current = false;
-        });
+          }
+      });
 
-      return () => {
-        controller.abort();
-        loadingRef.current = false;
-      };
-    }
-    return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId]);
+    return () => {
+      controller.abort();
+      isActive = false;
+      loadingRef.current = false;
+    };
+  }, [matchId, initialReport]);
 
   useEffect(() => {
     // Récupérer le tier depuis l'API (pour avoir accès à DEV_TIER côté serveur)
@@ -166,14 +185,24 @@ export function CoachTab({
           />
         )}
         
-        {/* Cache status */}
-        {isCached && report && (
-            <div className="mb-4 flex justify-end">
+        {/* Status badges */}
+        <div className="mb-4 flex justify-end gap-2">
+            {isCached && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-medium text-cyan-300">
-                    <span className="mr-0.5">⚡</span> Chargé depuis le cache
+                    <span className="mr-0.5">⚡</span> Cached
                 </span>
-            </div>
-        )}
+            )}
+            
+            {(report && (report as any).quality === "premium") ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">
+                    <span className="mr-0.5">🤖</span> AI Analysis
+                </span>
+            ) : (report && (report as any).quality?.includes("heuristic")) ? (
+                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs font-medium text-white/50">
+                    <span className="mr-0.5">🧠</span> Standard
+                </span>
+            ) : null}
+        </div>
 
         {/* Message d'erreur */}
         {error && (
@@ -197,7 +226,7 @@ export function CoachTab({
         )}
 
         {/* Coaching basique (gratuit) - toujours visible si report existe */}
-        {loading && !report && <CoachTabSkeleton />}
+
         
         <div className="mt-4 space-y-6">
             {/* 1. Insights immédiats (Audit) - Toujours visibles */}
@@ -257,6 +286,9 @@ export function CoachTab({
                 )}
               </div>
             </div>
+
+            {/* Loading State (AI Generation) */}
+            {loading && !report && <CoachTabSkeleton />}
 
             {/* 2. Insights AI / Heuristiques (Turning Point, Focus, etc.) - Si report chargé */}
             {report && hasQuota && (report.turningPoint || report.focus || report.action) && (

@@ -4,11 +4,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { riotFetch } from "@/lib/riot";
 import { ensureUser } from "@/lib/db/ensureUser";
-import { validateGameName, validateTagLine, sanitizeForUrl } from "@/lib/security";
+import { validateGameName, validateTagLine, sanitizeForUrl, validateOrigin } from "@/lib/security";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
+  // 0. CSRF Protection
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+  }
+
   // 1. Rate Limiting
   const identifier = getRateLimitIdentifier(req);
   const rateLimit = await checkRateLimit(identifier, RATE_LIMITS.account); // Reuse account limits for login

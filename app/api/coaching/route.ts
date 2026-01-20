@@ -14,85 +14,64 @@ import { logger } from "@/lib/logger";
 const COACHING_REPORT_VERSION = "v1";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+
+import { generateCoachingReportStrict } from "@/lib/openai";
 
 async function generateCoachingReport(
   matchData: MatchPageData,
   winProbData: ReturnType<typeof computeWinProbability>,
   isPremium: boolean = false
-): Promise<CoachingReport> {
-  // Si pas premium ou pas d'API key, utiliser heuristique
+): Promise<CoachingReport & { quality?: string; modelUsed?: string }> {
+  // 1. Fallback immédiat si FREE ou pas de clé API conf
   if (!isPremium || !OPENAI_API_KEY) {
-    return generateHeuristicReport(matchData, winProbData, isPremium);
+    return { ...generateHeuristicReport(matchData, winProbData, isPremium), quality: "heuristic" };
   }
 
   try {
-    const prompt = buildPrompt(matchData, winProbData, isPremium);
+    const userPrompt = buildPrompt(matchData, winProbData, isPremium);
+    const systemPrompt = `You are TheCall, an elite League of Legends post-game coach (Master+).
+You analyze ONLY the provided match data. If something is missing, say "unknown" — never invent.
+
+Style:
+- Direct, concise, no fluff.
+- Actionable instructions with timestamps / windows when possible.
+- Focus on macro: tempo, resets, objectives, vision, rotations, wave states, punish windows.
+
+Rules:
+- Keep the JSON short. Avoid long paragraphs.
+- Hard rule: If you don't see it in the data, you cannot claim it.
+- Output MUST be STRICT JSON matching the given schema. No extra keys, no markdown, no explanations outside JSON.
+- Advice must be specific: "what to do", "when", "why", "how to repeat".
+- Prefer 3–6 high-impact points over 20 generic ones.
+- If you propose a timing, base it on the match flow or say "around X min".
+
+Content priorities:
+1) Biggest turning point(s): identify 1–2 moments that flipped the game.
+2) Root causes: 2–4 fundamental mistakes (not symptoms).
+3) Action plan: 3 immediate habits to apply next games.
+4) Drills: 2 drills that are measurable and repeatable.
+5) Punish windows: how to convert a lead or stabilize when behind.
+
+Constraints:
+- Avoid generic phrases like "play safer" or "focus objectives" unless you add a concrete trigger + action.
+- Use short bullet-like sentences inside JSON strings.
+- Keep total output compact.
+
+Input:
+(Data provided in the user message below)
+`;
+
+    const { reportJson, modelUsed } = await generateCoachingReportStrict(systemPrompt, userPrompt);
     
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: `Tu es TheCall, un coach League of Legends expert en analyse post-match, spécialisé dans la macro et le tempo.
+    // cast result to CoachingReport (schema ensures structure)
+    const report = reportJson as CoachingReport;
 
-**Ton expertise**:
-- Analyse approfondie des builds (cohérence, timing, meta)
-- Détection de patterns d'erreurs récurrents
-- Conseils macro avancés (rotations, vision, objectifs, tempo)
-- Comparaison avec le meta actuel (patch 14.18)
-- Alternatives concrètes et actionnables
-
-**Ton style**:
-- Direct et précis, pas de blabla marketing
-- Concentré sur la macro, le tempo, les objectifs
-- Conseils actionnables avec timings précis
-- Adapté aux joueurs bas/moyen niveau (Iron à Platine)
-- Français naturel et accessible
-
-**Format de réponse**:
-- Turning Point: timestamp précis + cause détaillée + impact
-- Focus: un seul axe clair avec explication du pourquoi
-- Action: consigne concrète avec timing exact (ex: "Reset + vision à 14:20, 40s avant Drake")
-- Positives/Negatives: points spécifiques, pas génériques${isPremium ? `
-- Root Causes: causes racines avec preuves détaillées (événements, timings précis)
-- Action Plan: règles concrètes par phase (early/mid/late) avec anti-erreurs
-- Drills: exercices personnalisés avec nombre de games à pratiquer` : ""}`,
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: isPremium ? 2000 : 1500, // Plus de tokens pour premium
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-
-    const content = data.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("No content from OpenAI");
-    }
-
-    return parseLLMResponse(content, matchData, winProbData, isPremium);
+    return { ...report, quality: "premium", modelUsed };
   } catch (error) {
-    logger.error("Coaching API error", error);
-    // Fallback heuristique en cas d'erreur (même si premium)
-    return generateHeuristicReport(matchData, winProbData, isPremium);
+    logger.error("Coaching API error (OpenAI)", error);
+    // Fallback heuristique en cas d'erreur de génération, timeout, ou rate limit
+    return { ...generateHeuristicReport(matchData, winProbData, isPremium), quality: "heuristic_fallback" };
   }
 }
 
@@ -288,66 +267,7 @@ Génère un rapport JSON avec cette structure exacte:
 Réponds UNIQUEMENT avec le JSON, pas de texte avant/après.`;
 }
 
-function parseLLMResponse(
-  content: string,
-  matchData: MatchPageData,
-  winProbData: ReturnType<typeof computeWinProbability>,
-  isPremium: boolean = false
-): CoachingReport {
-  try {
-    // Extraire le JSON (peut être entouré de markdown code blocks)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("No JSON found in response");
-    }
 
-    const parsed = JSON.parse(jsonMatch[0]) as CoachingReport;
-    
-    // Validation basique
-    if (!parsed.positives || !Array.isArray(parsed.positives)) {
-      parsed.positives = [];
-    }
-    if (!parsed.negatives || !Array.isArray(parsed.negatives)) {
-      parsed.negatives = [];
-    }
-
-    // Validation des sections premium (optionnelles, uniquement si isPremium)
-    if (isPremium) {
-      if (parsed.rootCauses && (!parsed.rootCauses.causes || !Array.isArray(parsed.rootCauses.causes) || parsed.rootCauses.causes.length === 0)) {
-        logger.warn("[Coaching] rootCauses invalide ou vide, suppression");
-        parsed.rootCauses = undefined;
-      }
-      if (parsed.actionPlan && (!parsed.actionPlan.rules || !Array.isArray(parsed.actionPlan.rules) || parsed.actionPlan.rules.length === 0)) {
-        logger.warn("[Coaching] actionPlan invalide ou vide, suppression");
-        parsed.actionPlan = undefined;
-      }
-      if (parsed.drills && (!parsed.drills.exercises || !Array.isArray(parsed.drills.exercises) || parsed.drills.exercises.length === 0)) {
-        logger.warn("[Coaching] drills invalide ou vide, suppression");
-        parsed.drills = undefined;
-      }
-      
-      // Log pour debug
-      if (isPremium) {
-        logger.debug("[Coaching Premium] Sections générées", {
-          hasRootCauses: !!parsed.rootCauses,
-          hasActionPlan: !!parsed.actionPlan,
-          hasDrills: !!parsed.drills,
-        });
-      }
-    } else {
-      // Si pas premium, supprimer les sections premium si présentes
-      parsed.rootCauses = undefined;
-      parsed.actionPlan = undefined;
-      parsed.drills = undefined;
-    }
-
-    return parsed;
-  } catch (error) {
-    logger.error("Failed to parse LLM response", error);
-    // Fallback heuristique (sans sections premium si pas isPremium)
-    return generateHeuristicReport(matchData, winProbData, isPremium);
-  }
-}
 
 function generateHeuristicReport(
   matchData: MatchPageData,
@@ -634,7 +554,9 @@ export async function POST(req: NextRequest) {
                 logger.debug(`[DB] coachingReport HIT (matchId=${riotMatchId}, quality=${quality})`);
                 return NextResponse.json({
                     report: dbReport.reportJson,
-                    isPremium: quality === "premium",
+                    isPremium: quality === "premium", // Current user intent
+                    quality: dbReport.quality, // Actual quality served
+                    modelUsed: dbReport.modelUsed,
                     tier,
                     cached: true,
                     quota: { remaining: quota.remaining, limit: quota.limit }
@@ -689,9 +611,19 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Generate Report
-    logger.info("[Coaching API] Generating Report (fresh)", { matchId: riotMatchId, quality });
+    logger.info("[Coaching API] Generating Report (fresh)", { matchId: riotMatchId, quality: isPremium ? "premium (attempt)" : "heuristic" });
     const winProbData = computeWinProbability(matchData.timelineEvents);
-    const report = await generateCoachingReport(matchData, winProbData, isPremium);
+    const result = await generateCoachingReport(matchData, winProbData, isPremium);
+    
+    // Extract flags from result (added in generateCoachingReport)
+    const reportQuality = (result as any).quality || (isPremium ? "premium" : "heuristic");
+    const modelUsed = (result as any).modelUsed || null;
+
+    // Clean result to be just CoachingReport for persistent storage JSON
+    // (We cast to any to drop extra props temporary, logic below handles it)
+    const reportToStore = { ...result };
+    delete (reportToStore as any).quality;
+    delete (reportToStore as any).modelUsed;
 
     // 4. Persist Report
     if (dbMatchId) {
@@ -701,37 +633,44 @@ export async function POST(req: NextRequest) {
                     matchDbId_version_quality: {
                         matchDbId: dbMatchId,
                         version: COACHING_REPORT_VERSION,
-                        quality: quality
+                        quality: reportQuality // Store as actual quality produced (might be heuristic_fallback)
                     }
                 },
                 create: {
                    matchDbId: dbMatchId,
                    version: COACHING_REPORT_VERSION,
-                   quality: quality,
+                   quality: reportQuality,
                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                   reportJson: report as any,
-                   modelUsed: isPremium ? OPENAI_MODEL : null
+                   reportJson: reportToStore as any,
+                   modelUsed: modelUsed
                 },
                 update: {
                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                   reportJson: report as any
+                   reportJson: reportToStore as any,
+                   modelUsed: modelUsed
                 }
             });
-            logger.info(`[DB] coachingReport upsert OK (matchDbId=${dbMatchId})`);
+            logger.info(`[DB] coachingReport upsert OK (matchId=${riotMatchId}, quality=${reportQuality})`);
         } catch (e) {
             logger.error("[DB] Failed to save coaching report", e);
         }
     }
 
-    // 5. Update Quota (only if not cached)
-    // ... (keep TODO or existing logic) ...
+    // 5. Update Quota (only if Premium was successfully generated)
+    // If we fell back to heuristic, we DO NOT consume quota
+    let remaining = quota.remaining;
+    if (isPremium && reportQuality === "premium") {
+        // TODO: Call decrement service here if implemented
+        remaining = quota.remaining - 1; 
+    }
 
     return NextResponse.json({
-        report,
-        isPremium,
+        report: reportToStore,
+        isPremium: isPremium, // user tier status
+        quality: reportQuality, // actual generation quality
         tier,
         cached: false,
-        quota: { remaining: isPremium ? quota.remaining - 1 : quota.remaining, limit: quota.limit }
+        quota: { remaining, limit: quota.limit }
     });
 
   } catch (error) {

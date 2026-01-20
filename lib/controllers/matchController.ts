@@ -277,7 +277,7 @@ export async function getRawMatch(matchId: string, userId?: string, userPuuid?: 
         
         return riotData;
     },
-    3600
+    86400
   );
 }
 
@@ -314,7 +314,7 @@ export async function getRawTimeline(matchId: string, userId?: string): Promise<
              
              return riotData;
         },
-        3600
+        86400
    );
 }
 
@@ -417,7 +417,7 @@ export async function getMatchDetailsController(matchId: string, puuid: string):
 export async function getMatchesListController(puuid: string, type: "all" | "ranked" | "normal" | "flex" | "draft" = "all"): Promise<{ matches: MatchListItem[], cursor: number, exhausted: boolean }> {
   const queues = (QUEUE_BY_TYPE[type] ?? []) as readonly number[];
   const cacheKey = `${puuid}:${type}`;
-  const LIST_TTL_MS = 120_000;
+  const LIST_TTL_MS = 60_000;
 
   // Resolve User ID for persistence
   let userId: string | undefined;

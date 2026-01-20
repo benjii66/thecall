@@ -135,3 +135,23 @@ export function hasDangerousChars(input: string): boolean {
   
   return dangerous.some(char => input.includes(char));
 }
+
+/**
+ * Validates the Origin header for CSRF protection.
+ * Returns true if the Origin matches the allowed site URL.
+ */
+export function validateOrigin(request: Request): boolean {
+  const origin = request.headers.get("Origin");
+  if (!origin) return false;
+
+  const allowedUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || "http://localhost:3000";
+  
+  // Clean up URL to get base origin (protocol + host)
+  try {
+    const allowedOrigin = new URL(allowedUrl.startsWith("http") ? allowedUrl : `https://${allowedUrl}`).origin;
+    return origin === allowedOrigin;
+  } catch {
+    // Fallback simple check if URL parsing fails
+    return origin === allowedUrl;
+  }
+}
