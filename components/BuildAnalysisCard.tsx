@@ -55,23 +55,35 @@ export function BuildAnalysisCard({ analysis }: BuildAnalysisCardProps) {
                 className="group relative flex flex-col md:flex-row md:items-center gap-4 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 p-4 transition-colors"
               >
                 {/* Item Replacement Visual */}
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-4 shrink-0 bg-black/20 p-2 rounded-lg border border-white/5">
                     {/* BAD ITEM */}
-                    <div className="flex flex-col items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <div className="w-10 h-10 rounded bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500/50">
-                            <span className="text-lg">✕</span>
+                    <div className="flex flex-col items-center gap-1.5 min-w-[80px]">
+                        <div className="w-10 h-10 rounded bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-[0_0_10px_-3px_rgba(239,68,68,0.2)]">
+                            <span className="text-lg font-bold">✕</span>
                         </div>
-                         <span className="text-[10px] text-red-300/50 max-w-[60px] text-center truncate">{suggestion.replace}</span>
+                         <span className="text-[10px] font-medium text-red-400/70 text-center uppercase tracking-tight leading-tight">
+                            {t("coaching.buildAnalysis.replace")}
+                         </span>
+                         <span className="text-[10px] text-white/40 max-w-[100px] text-center leading-tight font-medium">
+                            {suggestion.replace}
+                         </span>
                     </div>
                     
-                    <div className="text-white/20">→</div>
+                    <div className="text-white/10 flex items-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </div>
 
                     {/* GOOD ITEM */}
-                    <div className="flex flex-col items-center gap-1">
-                        <div className="w-10 h-10 rounded bg-green-500/10 border border-green-500/30 flex items-center justify-center text-green-400 shadow-[0_0_15px_-3px_rgba(74,222,128,0.2)]">
-                            <span className="text-lg">✓</span>
+                    <div className="flex flex-col items-center gap-1.5 min-w-[80px]">
+                        <div className="w-10 h-10 rounded bg-green-500/10 border border-green-500/40 flex items-center justify-center text-green-400 shadow-[0_0_15px_-3px_rgba(74,222,128,0.3)]">
+                            <span className="text-lg font-bold">✓</span>
                         </div>
-                         <span className="text-[10px] text-green-300/80 max-w-[60px] text-center truncate">{suggestion.item}</span>
+                         <span className="text-[10px] font-bold text-green-400 text-center uppercase tracking-tight leading-tight">
+                            {t("coaching.buildAnalysis.suggestion")}
+                         </span>
+                         <span className="text-[10px] text-white/80 max-w-[100px] text-center leading-tight font-semibold">
+                            {suggestion.item}
+                         </span>
                     </div>
                 </div>
 

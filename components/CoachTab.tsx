@@ -242,7 +242,7 @@ export function CoachTab({
                     {t("coaching.progressionObjectives")}
                   </h3>
                   <ul className="space-y-3">
-                    {auditNegative.slice(0, isPro ? auditNegative.length : 3).map((item, i) => (
+                    {(report?.negatives?.length ? report.negatives : auditNegative.map(desc => ({ description: desc }))).slice(0, isPro ? undefined : 3).map((item, i) => (
                       <li
                         key={i}
                         className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-3"
@@ -250,7 +250,7 @@ export function CoachTab({
                         <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/10 text-xs font-semibold text-cyan-300">
                           {i + 1}
                         </div>
-                        <p className="flex-1 text-sm text-white/90">{item}</p>
+                        <p className="flex-1 text-sm text-white/90">{item.description}</p>
                       </li>
                     ))}
                   </ul>
@@ -269,11 +269,15 @@ export function CoachTab({
                 <AuditCard 
                   title={t("coaching.strengths")} 
                   tone="good" 
-                  items={isPro ? auditPositive : auditPositive.slice(0, 3)} 
+                  items={report?.positives?.length 
+                    ? report.positives.map(p => p.description)
+                    : auditPositive
+                  } 
+                  limit={isPro ? undefined : 3}
                 />
-                {!isPro && auditPositive.length > 3 && (
+                {!isPro && (report?.positives?.length || auditPositive.length) > 3 && (
                   <p className="mt-2 text-xs text-white/50 italic text-center">
-                    {t("coaching.moreStrengths", { count: String(auditPositive.length - 3) })}
+                    {t("coaching.moreStrengths", { count: String((report?.positives?.length || auditPositive.length) - 3) })}
                   </p>
                 )}
               </div>
@@ -281,11 +285,15 @@ export function CoachTab({
                 <AuditCard
                   title={t("coaching.weaknesses")}
                   tone="bad"
-                  items={isPro ? auditNegative : auditNegative.slice(0, 3)}
+                  items={report?.negatives?.length 
+                    ? report.negatives.map(n => n.description)
+                    : auditNegative
+                  }
+                  limit={isPro ? undefined : 3}
                 />
-                {!isPro && auditNegative.length > 3 && (
+                {!isPro && (report?.negatives?.length || auditNegative.length) > 3 && (
                   <p className="mt-2 text-xs text-white/50 italic text-center">
-                    {t("coaching.moreWeaknesses", { count: String(auditNegative.length - 3) })}
+                    {t("coaching.moreWeaknesses", { count: String((report?.negatives?.length || auditNegative.length) - 3) })}
                   </p>
                 )}
               </div>
@@ -507,10 +515,12 @@ function AuditCard({
   title,
   tone,
   items,
+  limit,
 }: {
   title: string;
   tone: "good" | "bad";
   items: string[];
+  limit?: number;
 }) {
   const toneCls =
     tone === "good"
@@ -519,11 +529,13 @@ function AuditCard({
 
   const titleCls = tone === "good" ? "text-emerald-200" : "text-red-200";
 
+  const displayItems = limit ? items.slice(0, limit) : items;
+
   return (
     <div className={`rounded-3xl border p-5 backdrop-blur ${toneCls}`}>
       <h4 className={`text-sm font-semibold ${titleCls}`}>{title}</h4>
       <ul className="mt-3 space-y-2 text-sm text-white/80">
-        {items.map((t) => (
+        {displayItems.map((t) => (
           <li key={t} className="flex gap-2">
             <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-white/50" />
             <span>{t}</span>

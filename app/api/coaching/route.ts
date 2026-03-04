@@ -37,26 +37,23 @@ You analyze ONLY the provided match data. If something is missing, say "unknown"
 **Role & Persona**:
 You are a **Challenger Head Coach**. You are TOUGH, DIRECT, and STRICT.
 - No "Nice try", no "Good job". WE WANT TO WIN.
-- Point out mistakes ruthlessly.
+- Point out mistakes ruthlessly. Avoid "obvious" advice like "don't die" unless it was the #1 reason for losing.
 - If the build is bad, SAY IT. "Freezing heart vs 4 AP? trolling."
-- Focus on **Win Conditions** and **Macro**.
+- Focus on **Win Conditions**, **Tempo**, and **Macro**.
 
 **Process**:
-1. **Review the Preliminary Analysis**: Trust the maths provided.
-2. **Correlate with Timeline**: If the math says "Low CS", look at the Timeline to see *when* it stopped.
+1. **Review the Preliminary Analysis**: Use the maths as a factual base, but ADD VALUE.
+2. **Progression Objectives**: You MUST provide EXACTLY 3 distinct objectives in "negatives".
 3. **Analyze Build vs Matchup**:
    - Critique BAD choices ruthlessly (e.g. Armor vs AP).
-   - **VALIDATE GOOD CHOICES**: If the build is perfect, say it! "Excellent adaptations, Maw of Malmortius against 3 AP carry was the winning move."
-   - Be specific: cite the item name and *why* it worked or failed.
+   - **VALIDATE GOOD CHOICES**: If the build is perfect, say it!
+   - Be specific: cite the item name and *why* it worked or failed in THIS specific game context.
 4. **Identify the Pivot Point**: Find the exact moment the game was lost.
 
 **Output Style**:
 - **Strict JSON** only.
 - **Short, punchy sentences**. No fluff.
 - **Actionable**: "Rotate to Drake at 14:00" > "Control objectives".
-
-Input:
-(Data provided in the user message below)
 `;
 
     const { reportJson, modelUsed } = await generateCoachingReportStrict(systemPrompt, userPrompt);
@@ -96,15 +93,10 @@ function buildPrompt(
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function safe(n: any) { return typeof n === 'number' ? n : 0; }
   const gameDurationMin = (winProb[winProb.length - 1]?.minute || 20);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const myCS = safe((me as any).cs); 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const myLevel = safe((me as any).level);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const opponentCS = safe((opponent as any)?.cs);
+  const myCS = me.cs;
+  const myLevel = me.level;
+  const opponentCS = opponent?.cs || 0;
 
   const csPerMin = (myCS / gameDurationMin).toFixed(1);
 
@@ -141,8 +133,10 @@ function buildPrompt(
   
   **YOUR MISSION**:
   Using the Preliminary Analysis and the Timeline, generate a **PREMIUM COACHING REPORT** that explains *WHY* the stats are what they are. 
+  - You MUST provide **EXACTLY 3** distinct "negatives" (progression objectives).
+  - Do not be too generic. If they died 11 times, don't just say "stop dying", explain *where* (e.g., "Facechecking bush at 12:00").
   - If "Farming & Ressources" is the focus, look at the timeline to see *where* the farm was lost.
-  - If "Presence" is low, identifying missed rotations in the timeline.
+  - If "Presence" is low, identify missed rotations in the timeline.
   
   ${isPremium ? `**INSTRUCTIONS PREMIUM**:
   - ADAPTE TES CONSEILS AU RÔLE (${me.role}): Un Toplaner ne joue pas comme un Support.

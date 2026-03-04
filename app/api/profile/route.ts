@@ -240,7 +240,7 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
           profile: {
               totalGames: 0, overallWinRate: 0, mainRole: "—", roleStats: [],
               playstyle: { aggression: "medium", objectiveFocus: "medium", teamFightPresence: "medium", description: "Pas assez de données." },
-              insights: [], trends: { recentWinRate: 0, recentGames: 0, improving: false }
+              insights: [], trends: { recentWinRate: 0, recentGames: 0, improving: true }
           },
           meta: { quality: "heuristic", aiUsed: false }
       };
@@ -322,6 +322,9 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
   const aggression = avgDeaths > 6 ? "high" : avgDeaths > 4 ? "medium" : "low";
   const objectiveFocus = avgObjectives > 3 ? "high" : avgObjectives > 2 ? "medium" : "low";
   const teamFightPresence = avgKPGlobal > 60 ? "high" : avgKPGlobal > 45 ? "medium" : "low";
+
+  // Trend logic: if winrate >= 50%, it's positive.
+  const improving = overallWinRate >= 50;
 
   let insights: PlayerProfile["insights"] = [];
   let playstyle: PlayerProfile["playstyle"] = {
@@ -495,29 +498,21 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
                         significant_delta: 0.10
                     };
 
-                    const systemPrompt = `You are generating a player profile summary from structured stats computed over the last N matches.
-
-CRITICAL RULES (DO NOT BREAK):
-1) Base your analysis PRIMARILY on the 'metrics' (rates/labels) and aggregated stats.
-2) Do not invent events or patterns not present in the input.
-3) Every recommendation MUST cite at least one evidence field (e.g. "You often die too much (High Death Rate: 45%)").
-4) Respect the pre-calculated labels ("rarely", "sometimes", "often"). Never say "always/never" unless rate > 0.8.
-5) If outlier matches are present, acknowledge them but do not over-weight them.
-6) If confidence_level is "low", use cautious language ("It seems like...", "Early data suggests...").
-
-YOUR TASK:
-Return a structured JSON object satisfying the provided schema.
-
-LANGUAGE:
-- concise
-- coaching-style but strictly grounded in data`;
-
-                    const userPrompt = JSON.stringify({
-                        thresholds,
-                        features,
-                         // We already embedded outliers/confidence in features, but can keep separate if needed by prompt logic.
-                         // Prompt instructions refer to input.
-                    });
+                      const systemPrompt = `Tu es un coach League of Legends de haut niveau (Challenger). Tu génères un résumé de profil joueur à partir de stats calculées sur les N dernières parties.
+  
+  RÈGLES CRITIQUES :
+  1) Ton analyse doit être EN FRANÇAIS.
+  2) Base-toi principalement sur les 'metrics' (taux/labels) et les stats agrégées fournies.
+  3) Ne pas inventer d'événements ou de patterns non présents dans les données.
+  4) Chaque recommandation DOIT citer au moins une preuve concrète (ex: "Tu meurs trop souvent (Taux de mort : 45%)").
+  5) Respecte les labels pré-calculés ("rarely", "sometimes", "often"). N'utilise "toujours/jamais" que si le taux > 0.8.
+  6) Si la confiance (confidence_level) est "low", utilise un langage prudent ("Il semble que...", "Les premières données suggèrent...").
+  7) Style de coaching direct, concis et basé sur la data. Ne sois pas trop verbeux.`;
+  
+                      const userPrompt = JSON.stringify({
+                          thresholds,
+                          features,
+                      });
 
                     const res = await generateProfileReportStrict(systemPrompt, userPrompt);
                     reportJson = res.reportJson;
@@ -649,7 +644,7 @@ LANGUAGE:
     trends: {
       recentWinRate: matches.length > 0 ? Math.round((matches.slice(0,10).filter(m => m.me.win).length / Math.min(matches.length, 10))*100) : 0,
       recentGames: Math.min(matches.length, 10),
-      improving: (matches.length > 0 ? Math.round((matches.slice(0,10).filter(m => m.me.win).length / Math.min(matches.length, 10))*100) : 0) > overallWinRate
+      improving: improving
     }
   };
 
@@ -659,8 +654,8 @@ LANGUAGE:
           quality: reportQuality, 
           aiUsed: isAiGenerated, 
           modelUsed: metaModel, 
-          cached: false, // Calculated fresh (at this moment)
-          createdAt: reportCreatedAt.toISOString()
+          cached: !!reportCreatedAt,
+          createdAt: reportCreatedAt ? reportCreatedAt.toISOString() : new Date().toISOString()
       } 
   };
 }

@@ -18,7 +18,9 @@ export type PlayerSummary = {
   level: number; // ← Champion Level
   visionScore: number;
   damage: number;
+  kills: number; // ← Ajouté
   deaths: number;
+  assists: number; // ← Ajouté
 
   win: boolean; // ← victoire / défaite
 

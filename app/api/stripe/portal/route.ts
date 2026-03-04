@@ -1,11 +1,11 @@
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { cookies } from "next/headers";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
     const cookieStore = await cookies();
     const puuid = cookieStore.get("user_puuid")?.value;
@@ -24,9 +24,13 @@ export async function POST() {
 
     // Create Stripe Portal Session
     // This allows the user to manage their subscription (cancel, update payment method, etc.)
+    const host = req.headers.get("host") || "localhost:3000";
+    const protocol = host.startsWith("localhost") ? "http" : "https";
+    const appUrl = `${protocol}://${host}`;
+
     const session = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings`,
+      return_url: `${appUrl}/settings`,
     });
 
     return NextResponse.json({ url: session.url });

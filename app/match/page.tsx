@@ -187,21 +187,30 @@ export default async function Home({
 
   const finalMatchId = selectedMatchId;
 
-  // Coaching placeholders
-  const coachingReport: import("@/types/coaching").CoachingReport | null = null;
-  const coachingQuota: { remaining: number; limit: number } | null = null;
-  const coachingTier: "free" | "pro" = "free";
+  // Resolve User ID for quota/tier
+  let userId: string | undefined = undefined;
+  if (puuid) {
+    try {
+      const user = await import("@/lib/db/ensureUser").then(m => m.ensureUser({ riotPuuid: puuid }));
+      userId = user.id;
+    } catch (e) {
+      console.warn("Failed to ensure user on page load", e);
+    }
+  }
 
-  const auditPositive = [
-    "Bon tempo early (objectifs sécurisés)",
-    "Bonne présence en fights",
-    "Build cohérent avec ton rôle",
-  ];
-  const auditNegative = [
-    "KP perfectible sur mid game",
-    "Trop de gold non converti en tempo",
-    "Vision à optimiser avant objectifs",
-  ];
+  // Coaching & Tier Logic
+  const { generateHeuristicReport } = await import("@/lib/coachingUtils");
+  const { getUserTierServer, canDoCoachingServer } = await import("@/lib/tier-server");
+  
+  const coachingTier = getUserTierServer(userId);
+  const coachingQuota = await canDoCoachingServer(userId);
+  
+  const winProbData = computeWinProbability(data.timelineEvents);
+  const heuristicReport = generateHeuristicReport(data, winProbData, coachingTier === "pro");
+
+  const auditPositive = heuristicReport.positives.map(p => p.description);
+  const auditNegative = heuristicReport.negatives.map(n => n.description);
+  const coachingReport = null; // Still fetch AI report client-side in CoachTab
 
   return (
     <Shell>

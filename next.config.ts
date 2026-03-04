@@ -52,11 +52,11 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Next.js nécessite unsafe-inline pour les scripts
-              "style-src 'self' 'unsafe-inline'", // Tailwind nécessite unsafe-inline
-              "img-src 'self' data: https://ddragon.leagueoflegends.com https://*.riotgames.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel-scripts.com",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: https://ddragon.leagueoflegends.com https://*.riotgames.com https://*.vercel.com",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.api.riotgames.com https://api.openai.com",
+              "connect-src 'self' https://*.api.riotgames.com https://api.openai.com https://vercel.live https://*.vercel.app https://api.stripe.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
@@ -74,10 +74,9 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Access-Control-Allow-Origin",
-            value: process.env.NEXT_PUBLIC_SITE_URL || 
-                   (process.env.NODE_ENV === "production" 
-                     ? "https://thecall.gg" // À remplacer par ton domaine
-                     : "http://localhost:3000"),
+            value: process.env.NEXT_PUBLIC_SITE_URL ||                    (process.env.NODE_ENV === "production" 
+                      ? "https://thecall.gg" 
+                      : "*"), // Allow all in dev to avoid port issues, or use a more specific dev URL if preferred
           },
           {
             key: "Access-Control-Allow-Methods",

@@ -180,7 +180,16 @@ export function NexusBackground({ theme: propTheme }: { theme?: Theme }) {
 
   return (
     <div className="fixed top-0 left-0 w-full h-full z-[-1] overflow-hidden bg-[#05060b] transition-colors duration-1000">
-        <Canvas dpr={[1, 1.5]} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+        <Canvas 
+            dpr={[1, 1.5]} 
+            gl={{ 
+                powerPreference: "high-performance", 
+                antialias: false, 
+                stencil: false,
+                depth: false
+            }}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+        >
             <BackgroundShader theme={activeTheme} />
         </Canvas>
     </div>

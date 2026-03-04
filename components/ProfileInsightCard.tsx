@@ -78,7 +78,7 @@ export function ProfileInsightCard({ insight }: { insight: Insight }) {
                 key={i}
                 className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs"
               >
-                <span className="text-white/50">{d.label}:</span>{" "}
+                {!(String(d.value).includes("%")) && <span className="text-white/50">{d.label}:</span>}{" "}
                 <span className="font-semibold text-white/90">{d.value}</span>
               </div>
             ))}

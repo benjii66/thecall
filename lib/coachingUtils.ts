@@ -87,18 +87,56 @@ export function generateHeuristicReport(
 
   // Positives
   const positives = [];
-  if (csPerMin > 7) positives.push({ type: "positive", title: "Bon Farming", description: `${csPerMin.toFixed(1)} CS/min, solide.` });
-  if (me.kp > 60) positives.push({ type: "positive", title: "Bonne Présence", description: "Tu es là quand ça bagarre." });
-  if (myDamage > opDamage * 1.2) positives.push({ type: "positive", title: "Gros Dégâts", description: "Tu as out-damage ton vis-à-vis." });
+  if (csPerMin > 7.5) positives.push({ type: "positive", title: "CS Prodigy", description: `Excellent farm (${csPerMin.toFixed(1)} CS/min). Tu as optimisé tes revenus.` });
+  else if (csPerMin > 6.5) positives.push({ type: "positive", title: "Bon Farming", description: `${csPerMin.toFixed(1)} CS/min, solide.` });
+  
+  if (me.kp > 70) positives.push({ type: "positive", title: "Omniprésent", description: `KP de ${me.kp}%. Tu es le moteur des combats de ton équipe.` });
+  else if (me.kp > 50) positives.push({ type: "positive", title: "Bonne Présence", description: "Tu es là quand ça bagarre." });
+  
+  if (myDamage > opDamage * 1.5) positives.push({ type: "positive", title: "Carry Hard", description: "Tu as pulvérisé ton vis-à-vis aux dégâts." });
+  else if (myDamage > opDamage * 1.2) positives.push({ type: "positive", title: "Gros Dégâts", description: "Tu as out-damage ton vis-à-vis." });
+  
+  if (allyObjectives >= 4) positives.push({ type: "positive", title: "Objectif Focus", description: "Très bonne sécurisation des objectifs neutres." });
+  
   if (positives.length === 0) positives.push({ type: "positive", title: "Esprit d'équipe", description: "Tu as joué jusqu'au bout." });
 
   // Negatives
   const negatives = [];
-  if (csPerMin < 5.5) negatives.push({ type: "negative", title: "Farming faible", description: "Tu perds trop d'or sur les sbires." });
-  if (me.deaths > 6) negatives.push({ type: "negative", title: "Trop de morts", description: "Tu donnes trop de gold à l'ennemi." });
-  if (myVision < opVision * 0.5) negatives.push({ type: "negative", title: "Vision abyssale", description: "L'adversaire voit tout, toi rien." });
-  if (negatives.length === 0) negatives.push({ type: "negative", title: "Manque d'impact", description: "Essaie de peser plus sur la game." });
+  // 1. CS Check
+  if (csPerMin < 5.0) negatives.push({ type: "negative", title: "Revenu critique", description: `Seulement ${csPerMin.toFixed(1)} CS/min. Tu manques de ressources pour carry.` });
+  else if (csPerMin < 6.2 && (me.role === "ADC" || me.role === "Mid")) negatives.push({ type: "negative", title: "Farming perfectible", description: "Tu perds trop d'or sur les sbires en mid-game." });
 
+  // 2. Deaths Check
+  if (me.deaths > 8) negatives.push({ type: "negative", title: "Survie critique", description: `Tes ${me.deaths} morts ont donné trop d'avance à l'ennemi.` });
+  else if (me.deaths > 5 && me.deaths > me.kills) negatives.push({ type: "negative", title: "Prendre trop de risques", description: "Tu donnes trop de gold à l'ennemi sur des erreurs de placement." });
+
+  // 3. Vision Check
+  if (myVision < 8 && durationMin > 15) negatives.push({ type: "negative", title: "Vision aveugle", description: "Ton score de vision est trop bas. Utilise ton trinket pour éviter les ganks." });
+  else if (myVision < opVision * 0.6 && me.role !== "ADC") negatives.push({ type: "negative", title: "Retard de vision", description: "L'adversaire contrôle la carte bien mieux que toi." });
+
+  // 4. KP Check
+  if (me.kp < 35 && me.role !== "Top") negatives.push({ type: "negative", title: "Isolement", description: `KP de ${me.kp}%. Tu joues trop éloigné des actions décisives.` });
+
+  // 5. Objective Contribution
+  if (allyObjectives === 0 && durationMin > 15) negatives.push({ type: "negative", title: "Macro stérile", description: "Aucun objectif neutre sécurisé. Travaille ton contrôle de map." });
+
+  // 6. Role Specific
+  if (me.role === "Support" && myVision < 25 && durationMin > 20) negatives.push({ type: "negative", title: "Support passif", description: "En tant que support, ton contrôle de vision doit être une priorité." });
+
+  // Ensure at least 3 negatives for "a bit to eat" (free tier)
+  if (negatives.length < 3) {
+    const fallbacks = [
+      { type: "negative", title: "Optimisation des Backs", description: "Vérifie tes timings de reset pour ne pas perdre de tempo sur la carte." },
+      { type: "negative", title: "Contrôle de Vision", description: "Utilise tes balises de contrôle pour sécuriser les entrées de jungle." },
+      { type: "negative", title: "Gestion des Waves", description: "Assure-toi de push ta wave avant de décaler pour ne pas perdre de plaques." }
+    ];
+    for (const f of fallbacks) {
+      if (negatives.length >= 3) break;
+      if (!negatives.some(n => n.title === f.title)) {
+        negatives.push(f);
+      }
+    }
+  }
 
   return {
     turningPoint: {

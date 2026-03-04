@@ -144,14 +144,29 @@ export function validateOrigin(request: Request): boolean {
   const origin = request.headers.get("Origin");
   if (!origin) return false;
 
-  const allowedUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || "http://localhost:3000";
+  // In development, we might not have a full URL
+  if (process.env.NODE_ENV === "development") return true;
+
+  const allowedUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL;
+  
+  if (!allowedUrl) return true; // Fail-open in dev/preview if no URL is set, or add logic
   
   // Clean up URL to get base origin (protocol + host)
   try {
     const allowedOrigin = new URL(allowedUrl.startsWith("http") ? allowedUrl : `https://${allowedUrl}`).origin;
-    return origin === allowedOrigin;
+    
+    // Exact match
+    if (origin === allowedOrigin) return true;
+
+    // Vercel Preview/Branch support: allow any *.vercel.app for ease of testing
+    // In strict production with custom domain, NEXT_PUBLIC_SITE_URL should be set.
+    if (origin.endsWith(".vercel.app")) {
+        return true;
+    }
+
+    return false;
   } catch {
     // Fallback simple check if URL parsing fails
-    return origin === allowedUrl;
+    return origin === allowedUrl || origin.endsWith(".vercel.app");
   }
 }

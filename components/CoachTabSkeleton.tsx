@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import { Skeleton } from "./SkeletonLoader";
+import { PoroLoader } from "./PoroLoader";
 
 const LOADING_MESSAGES = [
   "Analyse de la vision...",
@@ -48,36 +48,10 @@ export function CoachTabSkeleton() {
 
   return (
     <div className="space-y-8">
-      
-      {/* Fun Loading Bar Area */}
-      <div className="mx-auto max-w-md text-center py-8">
-        <div className="mb-4 flex flex-col items-center gap-4">
-            <div className="relative h-24 w-24">
-                <div className="absolute inset-0 flex items-center justify-center animate-bounce">
-                    <Image 
-                        src="/poro.png" 
-                        alt="Loading Poro" 
-                        width={80} 
-                        height={80} 
-                        className="object-contain mix-blend-screen" 
-                    />
-                </div>
-                <div className="absolute inset-0 animate-ping rounded-full border-2 border-cyan-400 opacity-20"></div>
-                <div className="absolute -inset-4 animate-pulse rounded-full border border-cyan-500/30"></div>
-            </div>
-            <p className="min-h-[1.5em] text-sm font-medium text-cyan-300 transition-all duration-300 mt-2">
-                {LOADING_MESSAGES[messageIndex]}
-            </p>
-        </div>
-        
-        <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/10">
-          <div 
-            className="h-full bg-gradient-to-r from-cyan-500 to-blue-600 transition-all duration-200 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <p className="mt-2 text-xs text-white/40">{Math.round(progress)}%</p>
-      </div>
+      <PoroLoader 
+        message={LOADING_MESSAGES[messageIndex]} 
+        progress={progress} 
+      />
 
       <div className="space-y-6 opacity-50 blur-[2px] transition-all duration-1000">
 

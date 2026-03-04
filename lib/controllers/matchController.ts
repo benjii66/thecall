@@ -400,7 +400,9 @@ export async function getMatchDetailsController(matchId: string, puuid: string):
                 level: myLevel,
                 visionScore: myVision,
                 damage: myDamage,
+                kills: safeNumber(meRaw.kills),
                 deaths: safeNumber(meRaw.deaths),
+                assists: safeNumber(meRaw.assists),
                 build: {
                     items: myItemIds,
                     runes: myRuneIcons,
@@ -419,7 +421,9 @@ export async function getMatchDetailsController(matchId: string, puuid: string):
                 level: opponentLevel,
                 visionScore: opponentVision,
                 damage: opponentDamage,
+                kills: opponentRaw ? safeNumber(opponentRaw.kills) : 0,
                 deaths: opponentRaw ? safeNumber(opponentRaw.deaths) : 0,
+                assists: opponentRaw ? safeNumber(opponentRaw.assists) : 0,
                 build: {
                     items: opponentItemIds,
                     runes: opponentRuneIcons,

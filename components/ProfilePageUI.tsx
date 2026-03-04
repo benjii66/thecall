@@ -10,6 +10,7 @@ import { ProfilePageTransition } from "@/components/ProfilePageTransition";
 import { MiniProfile } from "@/components/MiniProfile";
 import { hasMiniProfileAccess, hasFullProfileAccess } from "@/lib/tier";
 import { useLanguage } from "@/lib/language";
+import { PoroLoader } from "@/components/PoroLoader";
 
 import type { PlayerProfile } from "@/types/profile";
 
@@ -21,17 +22,14 @@ type ProfileMeta = {
   createdAt?: string;
 };
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ??
-  (process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000");
+
 
 export function ProfilePageUI({ puuid }: { puuid?: string }) {
   const { t } = useLanguage();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [meta, setMeta] = useState<ProfileMeta | null>(null);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<{ message: string; hint: string } | null>(null);
 
   useEffect(() => {
@@ -40,8 +38,17 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
          setLoading(false);
          return;
       }
+      
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 92) return prev; // Slow down near the end
+          return prev + (prev < 60 ? 12 : 3);
+        });
+      }, 500);
+
       try {
-        const res = await fetch(`${BASE_URL}/api/profile?puuid=${puuid}`, {
+        const res = await fetch(`/api/profile?puuid=${puuid}`, {
           cache: "no-store",
         });
 
@@ -70,7 +77,11 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
           hint: t("profile.puuidHint"),
         });
       } finally {
-        setLoading(false);
+        setProgress(100);
+        setTimeout(() => {
+            setLoading(false);
+            clearInterval(progressInterval);
+        }, 500);
       }
     }
 
@@ -80,9 +91,7 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
   if (loading) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center px-6">
-        <div className="text-center">
-          <p className="text-lg font-semibold">{t("common.loading")}</p>
-        </div>
+        <PoroLoader progress={progress} />
       </div>
     );
   }
