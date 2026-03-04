@@ -24,13 +24,13 @@ describe("Logger", () => {
 
   describe("error", () => {
     it("should log error messages in development", () => {
-      process.env.NODE_ENV = "development";
+      Object.defineProperty(process.env, "NODE_ENV", { value: "development", writable: true });
       logger.error("Test error", new Error("Test"));
       expect(mockConsole.error).toHaveBeenCalled();
     });
 
     it("should format error with context", () => {
-      process.env.NODE_ENV = "development";
+      Object.defineProperty(process.env, "NODE_ENV", { value: "development", writable: true });
       logger.error("Test error", undefined, { userId: "123" });
       expect(mockConsole.error).toHaveBeenCalledWith(
         expect.stringContaining("Test error")
@@ -40,7 +40,7 @@ describe("Logger", () => {
 
   describe("warn", () => {
     it("should log warning messages", () => {
-      process.env.NODE_ENV = "development";
+      Object.defineProperty(process.env, "NODE_ENV", { value: "development", writable: true });
       logger.warn("Test warning", { key: "value" });
       expect(mockConsole.warn).toHaveBeenCalled();
     });
@@ -48,7 +48,7 @@ describe("Logger", () => {
 
   describe("info", () => {
     it("should log info messages in development", () => {
-      process.env.NODE_ENV = "development";
+      Object.defineProperty(process.env, "NODE_ENV", { value: "development", writable: true });
       logger.info("Test info");
       expect(mockConsole.log).toHaveBeenCalled();
     });
@@ -56,7 +56,7 @@ describe("Logger", () => {
 
   describe("debug", () => {
     it("should log debug messages in development", () => {
-      process.env.NODE_ENV = "development";
+      Object.defineProperty(process.env, "NODE_ENV", { value: "development", writable: true });
       logger.debug("Test debug");
       expect(mockConsole.debug).toHaveBeenCalled();
     });

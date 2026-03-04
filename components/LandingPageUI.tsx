@@ -10,7 +10,8 @@ import {
 import { RiotIdForm } from "@/components/RiotIdForm";
 import { NavigationButton } from "@/components/NavigationButton";
 import { useLanguage } from "@/lib/language";
-import { BackgroundFX } from "@/components/BackgroundFX";
+import { GlassCard } from "@/components/GlassCard";
+import { HoloTypography } from "@/components/HoloTypography";
 
 export function LandingPageUI() {
   const { t } = useLanguage();
@@ -43,10 +44,7 @@ export function LandingPageUI() {
 
   return (
     <>
-      {/* BACKGROUND LAYER (vibe client LoL) */}
-      <BackgroundFX />
-
-      <section className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 py-16">
+      <section className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 pt-36 pb-16">
         {/* BETA BADGE */}
         <div className="flex items-center justify-center gap-3 text-xs text-white/60">
           <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 font-medium text-cyan-300">
@@ -59,7 +57,7 @@ export function LandingPageUI() {
         </div>
 
         {/* HERO */}
-        <div className="relative rounded-3xl border border-white/10 bg-white/4 p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] backdrop-blur-md lg:flex lg:items-center lg:justify-between lg:gap-10 overflow-hidden">
+        <GlassCard className="p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] lg:flex lg:items-center lg:justify-between lg:gap-10">
              {/* Ambient Glow */}
              <div className="pointer-events-none absolute -top-24 -left-20 h-96 w-96 rounded-full bg-cyan-500/20 blur-[100px] opacity-40 mix-blend-screen" />
              
@@ -68,10 +66,12 @@ export function LandingPageUI() {
               {t("landing.tagline")}
             </p>
 
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight leading-[1.05] lg:text-5xl">
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight leading-[1.05] lg:text-5xl text-white">
               {t("landing.title")}
               <br />
-              <span className="text-white">{t("landing.titleHighlight")}</span> {t("landing.titleEnd")}
+              <HoloTypography variant="highlight" className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-white to-cyan-200">
+                {t("landing.titleHighlight")}
+              </HoloTypography> {t("landing.titleEnd")}
             </h1>
 
             <p className="mt-2 text-sm text-white/55">
@@ -146,210 +146,100 @@ export function LandingPageUI() {
                 >
                   {/* grid */}
                   <defs>
-                    <pattern
-                      id="heroGrid"
-                      x="0"
-                      y="0"
-                      width="4"
-                      height="4"
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <path
-                        d="M 4 0 L 0 0 0 4"
-                        fill="none"
-                        stroke="rgba(148,163,184,0.28)"
-                        strokeWidth="0.2"
-                      />
-                    </pattern>
-                    <linearGradient id="heroArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="rgba(34,211,238,0.35)" />
-                      <stop offset="50%" stopColor="rgba(148,163,184,0.18)" />
-                      <stop offset="100%" stopColor="rgba(248,113,113,0.3)" />
+                    <linearGradient id="heroProbLineGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#06b6d4" />
+                      <stop offset="50%" stopColor="#8b5cf6" />
+                      <stop offset="100%" stopColor="#ef4444" />
                     </linearGradient>
-                    <linearGradient id="heroLine" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#22d3ee" />
-                      <stop offset="40%" stopColor="#22c55e" />
-                      <stop offset="75%" stopColor="#facc15" />
-                      <stop offset="100%" stopColor="#f97373" />
+                    <linearGradient id="heroProbAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(6,182,212,0.25)" />
+                      <stop offset="50%" stopColor="rgba(139,92,246,0.15)" />
+                      <stop offset="100%" stopColor="rgba(239,68,68,0.25)" />
                     </linearGradient>
+                    <filter id="heroGlow">
+                      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
                   </defs>
 
-                  <rect
-                    x="0"
-                    y="0"
-                    width="100"
-                    height="40"
-                    fill="url(#heroGrid)"
-                    opacity="0.2"
-                  />
-
-                  {/* top / bottom zones */}
-                  <rect
-                    x="0"
-                    y="0"
-                    width="100"
-                    height="20"
-                    fill="rgba(34,197,94,0.12)"
-                  />
-                  <rect
-                    x="0"
-                    y="20"
-                    width="100"
-                    height="20"
-                    fill="rgba(248,113,113,0.12)"
-                  />
-
-                  {/* baseline 50% */}
+                  {/* 50% baseline */}
                   <line
                     x1="0"
                     x2="100"
                     y1="20"
                     y2="20"
-                    stroke="rgba(248,250,252,0.3)"
-                    strokeDasharray="3 3"
+                    stroke="rgba(255,255,255,0.2)"
+                    strokeDasharray="4 4"
                     strokeWidth="0.5"
                   />
 
-                  {/* sample curve area */}
+                  {/* Area fill */}
                   <path
-                    d="M 0 23 C 10 24 18 26 26 22 C 35 18 42 14 50 18 C 58 22 64 30 72 28 C 82 25 88 18 100 19 L 100 40 L 0 40 Z"
-                    fill="url(#heroArea)"
-                    opacity="0.9"
+                    d="M 0 20 L 0 40 L 100 40 L 100 5 C 95 8 90 12 80 15 C 70 18 60 22 50 20 C 40 18 35 25 25 28 C 15 30 10 25 0 20 Z"
+                    fill="url(#heroProbAreaGrad)"
+                    opacity="0.6"
                   />
 
-                  {/* sample curve line */}
+                  {/* Main Curve */}
                   <path
-                    d="M 0 23 C 10 24 18 26 26 22 C 35 18 42 14 50 18 C 58 22 64 30 72 28 C 82 25 88 18 100 19"
+                    d="M 0 20 C 10 25 15 30 25 28 C 35 25 40 18 50 20 C 60 22 70 18 80 15 C 90 12 95 8 100 5"
                     fill="none"
-                    stroke="url(#heroLine)"
-                    strokeWidth="1.8"
+                    stroke="url(#heroProbLineGrad)"
+                    strokeWidth="1.5"
                     strokeLinecap="round"
+                    strokeLinejoin="round"
+                    filter="url(#heroGlow)"
                   />
-
-                  {/* sample event markers */}
-                  <g>
-                    {/* Kill */}
-                    <line
-                      x1="18"
-                      y1="24"
-                      x2="18"
-                      y2="32"
-                      stroke="rgba(248,250,252,0.45)"
-                      strokeWidth="0.5"
-                      strokeDasharray="2 2"
-                    />
-                    <circle cx="18" cy="24" r="1.3" fill="#22c55e">
-                      <title>Kill — +6% win prob</title>
-                    </circle>
-                    <text
-                      x="18"
-                      y="36"
-                      textAnchor="middle"
-                      fontSize="4"
-                      fill="rgba(248,250,252,0.75)"
-                    >
-                      Kill
-                    </text>
-
-                    {/* Herald */}
-                    <line
-                      x1="50"
-                      y1="18"
-                      x2="50"
-                      y2="30"
-                      stroke="rgba(248,250,252,0.45)"
-                      strokeWidth="0.5"
-                      strokeDasharray="2 2"
-                    />
-                    <circle cx="50" cy="18" r="1.3" fill="#22c55e">
-                      <title>Herald perdu — -18% win prob</title>
-                    </circle>
-                    <text
-                      x="50"
-                      y="34"
-                      textAnchor="middle"
-                      fontSize="4"
-                      fill="rgba(248,250,252,0.75)"
-                    >
-                      Herald
-                    </text>
-
-                    {/* Baron */}
-                    <line
-                      x1="82"
-                      y1="21"
-                      x2="82"
-                      y2="31"
-                      stroke="rgba(248,250,252,0.45)"
-                      strokeWidth="0.5"
-                      strokeDasharray="2 2"
-                    />
-                    <circle cx="82" cy="21" r="1.3" fill="#f97316">
-                      <title>Baron — swing décisif</title>
-                    </circle>
-                    <text
-                      x="82"
-                      y="35"
-                      textAnchor="middle"
-                      fontSize="4"
-                      fill="rgba(248,250,252,0.75)"
-                    >
-                      Baron
-                    </text>
+                  {/* Win End */}
+                  <g transform="translate(100, 5)">
+                     <circle r="1.5" fill="#06b6d4" />
+                     <circle r="4" fill="rgba(6,182,212,0.2)" className="animate-pulse" />
                   </g>
+
+
                 </svg>
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-3 text-[11px] text-white/70">
-                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] text-white/70">
+                {/* MACRO */}
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 flex flex-col justify-between">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-cyan-300">
                     {t("landing.previewMacro")}
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {t("landing.previewMacroScore")}
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-white/55">
-                    {t("landing.previewMacroValue")}
-                  </div>
-                  <div className="mt-1 h-1.5 w-full rounded-full bg-white/10">
-                    <div className="h-full w-[78%] rounded-full bg-cyan-400" />
+                  <div className="mt-1.5 text-[10px] leading-snug text-white/80">
+                    Rotation dragon parfaite. Bon usage du tempo mid-game.
                   </div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+
+                {/* LANING */}
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 flex flex-col justify-between">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-300">
                     {t("landing.previewLaning")}
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {t("landing.previewLaningScore")}
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-white/55">
-                    {t("landing.previewLaningValue")}
-                  </div>
-                  <div className="mt-1 h-1.5 w-full rounded-full bg-white/10">
-                    <div className="h-full w-[64%] rounded-full bg-emerald-400" />
+                  <div className="mt-1.5 text-[10px] leading-snug text-white/80">
+                    Dominant (+15cs). Attention aux ganks topside vers 4:00.
                   </div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+
+                {/* DECISIONS */}
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 flex flex-col justify-between">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-rose-300">
                     {t("landing.previewDecisions")}
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {t("landing.previewDecisionsScore")}
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-white/55">
-                    {t("landing.previewDecisionsValue")}
-                  </div>
-                  <div className="mt-1 h-1.5 w-full rounded-full bg-white/10">
-                    <div className="h-full w-[42%] rounded-full bg-rose-400" />
+                  <div className="mt-1.5 text-[10px] leading-snug text-white/80">
+                    2 morts évitables en sidelane. Respecte le fog of war.
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </GlassCard>
 
         {/* EXEMPLE DE RAPPORT */}
-        <div className="rounded-2xl border border-white/10 bg-white/3 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+        <GlassCard className="p-6">
           <h2 className="mb-4 text-lg font-semibold text-white">
             {t("landing.exampleTitle")}
           </h2>
@@ -390,7 +280,7 @@ export function LandingPageUI() {
               </p>
             </div>
           </div>
-        </div>
+        </GlassCard>
 
         {/* HOW IT WORKS (3 actions concrètes) */}
         <div className="mt-6 grid gap-3 text-xs text-white/70 sm:grid-cols-3">
@@ -417,9 +307,9 @@ export function LandingPageUI() {
         {/* FEATURES */}
         <div className="grid gap-4 md:grid-cols-3">
           {features.map(({ title, desc, icon: Icon, proof }) => (
-            <div
+            <GlassCard
               key={title}
-              className="rounded-2xl border border-white/10 bg-white/3 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
+              className="p-5"
             >
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
                 <Icon size={18} />
@@ -431,12 +321,12 @@ export function LandingPageUI() {
                   {proof}
                 </p>
               )}
-            </div>
+            </GlassCard>
           ))}
         </div>
 
         {/* WHAT YOU GET AFTER A GAME */}
-        <div className="grid gap-6 rounded-2xl border border-white/10 bg-linear-to-br from-white/5 via-transparent to-cyan-500/5 p-6 md:grid-cols-[1.6fr_1.1fr]">
+        <GlassCard className="grid gap-6 p-6 md:grid-cols-[1.6fr_1.1fr] bg-linear-to-br from-white/5 via-transparent to-cyan-500/5">
           <div>
             <h2 className="flex items-center gap-2 text-2xl font-semibold text-white">
               <Sparkles className="h-5 w-5 text-cyan-300" />{t("landing.coachingTitle")}
@@ -460,7 +350,7 @@ export function LandingPageUI() {
               ))}
             </ul>
           </div>
-        </div>
+        </GlassCard>
       </section>
     </>
   );

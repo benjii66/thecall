@@ -1,14 +1,17 @@
 
 import { NavbarWrapper } from "@/components/NavbarWrapper";
-import { BackgroundFX } from "@/components/BackgroundFX";
 import { ProfilePageUI } from "@/components/ProfilePageUI";
 
-export default function ProfilePage() {
+import { cookies } from "next/headers";
+
+export default async function ProfilePage() {
+  const cookieStore = await cookies();
+  const puuid = cookieStore.get("user_puuid")?.value;
+
   return (
-    <main className="min-h-screen bg-[#05060b] text-white">
+    <main className="min-h-screen text-white">
       <NavbarWrapper />
-      <BackgroundFX />
-      <ProfilePageUI />
+      <ProfilePageUI puuid={puuid} />
     </main>
   );
 }

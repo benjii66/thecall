@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
-// API route pour récupérer le tier utilisateur
+// API route pour récupérer le tier utilisateur (Force Refresh)
 import { NextResponse } from "next/server";
-import { getUserTier, getUserTierLimits } from "@/lib/tier";
+import { getUserTierServer, getUserTierLimitsServer } from "@/lib/tier-server";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 
 export async function GET(req: Request) {
@@ -22,6 +22,7 @@ export async function GET(req: Request) {
     response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
     return response;
   }
+  
   // TODO: Récupérer userId depuis session/cookie
   const userId = undefined;
 
@@ -33,9 +34,9 @@ export async function GET(req: Request) {
   // Sinon, utiliser la logique normale
   const tier = devTier && (devTier === "free" || devTier === "pro") 
     ? devTier 
-    : getUserTier(userId);
+    : getUserTierServer(userId);
   
-  const limits = getUserTierLimits(userId);
+  const limits = getUserTierLimitsServer(userId);
 
   return NextResponse.json({
     tier,

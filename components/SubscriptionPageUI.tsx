@@ -126,26 +126,33 @@ export function SubscriptionPageUI() {
   const handleUpgradeToPro = async () => {
     setIsProcessing(true);
     try {
-      const result = await switchTier("pro");
-      if (result.success) {
-        const newTier = getClientTier();
-        setSubscription({
-          tier: newTier,
-          isActive: newTier === "pro",
-          renewalDate: newTier === "pro" ? getNextMonth(language) : undefined,
-          cancelAtPeriodEnd: false,
-        });
-        setShowUpgradeConfirm(false);
-        // Recharger la page pour appliquer les changements
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
+      // Call Stripe Checkout API
+      // We don't pass userId here, letting the server resolve it from env/session 
+      // as per our current "Single User" architecture.
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}), 
+      });
+
+      if (!res.ok) {
+        throw new Error("Checkout initialisation failed");
+      }
+
+      const { url } = await res.json();
+      if (url) {
+        // Redirect to Stripe
+        window.location.href = url;
+      } else {
+        throw new Error("No checkout URL returned");
       }
     } catch (error) {
-      console.error("Erreur lors du passage en Pro:", error);
-    } finally {
+      console.error("Erreur lors de l'initialisation Stripe:", error);
+      alert("Une erreur est survenue lors de la redirection vers le paiement.");
       setIsProcessing(false);
+      setShowUpgradeConfirm(false);
     }
+    // No finally { setIsProcessing(false) } here because we redirect
   };
 
   const isPro = subscription.tier === "pro";
@@ -303,7 +310,7 @@ export function SubscriptionPageUI() {
                 disabled={isProcessing}
                 className="px-6 py-3 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/30 transition font-medium disabled:opacity-50"
               >
-                {t("subscription.upgradeTitle")} (Dev Mode)
+                {t("subscription.upgradeTitle")}
               </button>
               <Link
                 href="/pricing"

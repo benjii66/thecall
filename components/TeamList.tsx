@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useLanguage } from "@/lib/language";
 import type { TeamPlayer } from "@/types/match";
+import { GlassCard } from "@/components/GlassCard";
 
 const DD_VERSION = "14.23.1";
 const champIcon = (name: string) =>
@@ -21,7 +22,7 @@ export function TeamList({ titleKey, title, team, tone }: TeamListProps) {
   const headerTone = tone === "ally" ? "text-cyan-200/90" : "text-red-200/90";
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur">
+    <GlassCard className="p-5" hoverEffect>
       <div className="mb-4 flex items-center justify-between">
         <h3 className={`text-sm font-semibold ${headerTone}`}>{displayTitle}</h3>
         <div className="h-px w-24 bg-gradient-to-r from-white/0 via-white/15 to-white/0" />
@@ -45,6 +46,6 @@ export function TeamList({ titleKey, title, team, tone }: TeamListProps) {
           </li>
         ))}
       </ul>
-    </div>
+    </GlassCard>
   );
 }

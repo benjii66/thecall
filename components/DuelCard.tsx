@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useLanguage } from "@/lib/language";
+import { GlassCard } from "@/components/GlassCard";
 
 const DD_VERSION = "14.23.1";
 const champIcon = (name: string) =>
@@ -44,8 +45,9 @@ export function DuelCard({
     : "border-red-400/30 bg-red-500/10 text-red-200";
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur ${borderGlow} ring-1 ${ring}`}
+    <GlassCard
+      className={`relative p-6 ${borderGlow} ring-1 ${ring}`}
+      hoverEffect
     >
       <Image
         src={champSplash(champion)}
@@ -96,7 +98,7 @@ export function DuelCard({
           <Stat label="Gold" value={`${gold}`} />
         </div>
       </div>
-    </div>
+    </GlassCard>
   );
 }
 

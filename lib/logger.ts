@@ -8,8 +8,13 @@ interface LogContext {
 }
 
 class Logger {
-  private isDevelopment = process.env.NODE_ENV === "development";
-  private isProduction = process.env.NODE_ENV === "production";
+  private get isDevelopment() {
+    return process.env.NODE_ENV === "development";
+  }
+
+  private get isProduction() {
+    return process.env.NODE_ENV === "production";
+  }
 
   private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
     const timestamp = new Date().toISOString();
@@ -29,7 +34,7 @@ class Logger {
         }
       : context;
 
-    if (this.isDevelopment) {
+    if (this.isDevelopment || process.env.NODE_ENV === "test") {
       console.error(this.formatMessage("error", message, errorContext));
     }
 
@@ -41,19 +46,19 @@ class Logger {
   }
 
   warn(message: string, context?: LogContext): void {
-    if (this.isDevelopment || this.isProduction) {
+    if (this.isDevelopment || this.isProduction || process.env.NODE_ENV === "test") {
       console.warn(this.formatMessage("warn", message, context));
     }
   }
 
   info(message: string, context?: LogContext): void {
-    if (this.isDevelopment) {
+    if (this.isDevelopment || process.env.NODE_ENV === "test") {
       console.log(this.formatMessage("info", message, context));
     }
   }
 
   debug(message: string, context?: LogContext): void {
-    if (this.isDevelopment) {
+    if (this.isDevelopment || process.env.NODE_ENV === "test") {
       console.debug(this.formatMessage("debug", message, context));
     }
   }

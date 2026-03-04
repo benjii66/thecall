@@ -48,7 +48,16 @@ export async function POST(req: Request) {
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
+        console.log(`[Webhook] Processing subscription event: ${event.type}`, subscription.id);
+
+        const customerId = typeof subscription.customer === 'string' 
+            ? subscription.customer 
+            : subscription.customer?.id;
+
+        if (!customerId) {
+            console.error("[Webhook] No customerId found in subscription");
+            break;
+        }
 
         // Find user by stripeCustomerId
         const user = await prisma.user.findUnique({
@@ -57,42 +66,52 @@ export async function POST(req: Request) {
 
         if (user) {
             const status = subscription.status;
-            // Map plan to 'free' or 'pro' based on priceId or metadata
-            // Basic logic: if active -> pro? 
-            // Or check `subscription.items.data[0].price.id` against known PRO_PRICE_ID
-            
             const isPro = status === "active" || status === "trialing";
             const tier = isPro ? "pro" : "free";
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const endDate = new Date((subscription as any).current_period_end * 1000);
-
-            await prisma.subscription.upsert({
-                where: { userId: user.id },
-                create: {
-                    userId: user.id,
-                    status: subscription.status,
-                    plan: tier,
-                    priceId: subscription.items.data[0]?.price.id,
-                    currentPeriodEnd: endDate,
-                    cancelAtPeriodEnd: subscription.cancel_at_period_end,
-                },
-                update: {
-                    status: subscription.status,
-                    plan: tier,
-                    priceId: subscription.items.data[0]?.price.id,
-                    currentPeriodEnd: endDate,
-                    cancelAtPeriodEnd: subscription.cancel_at_period_end,
-                }
-            });
-
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { tier: tier }
-            });
+            // Stripe dates are in seconds, Date constructor expects ms
+            const currentPeriodEnd = (subscription as any).current_period_end;
+            const endDate = currentPeriodEnd 
+                ? new Date(currentPeriodEnd * 1000) 
+                : undefined;
             
-            logger.info(`Updated Subscription for User ${user.id} to ${status} (${tier})`);
+            const priceId = subscription.items?.data?.[0]?.price?.id || null;
+
+            console.log(`[Webhook] Updating user ${user.id} subscription. Status: ${status}, Tier: ${tier}, Price: ${priceId}`);
+
+            try {
+                await prisma.subscription.upsert({
+                    where: { userId: user.id },
+                    create: {
+                        userId: user.id,
+                        status: subscription.status,
+                        plan: tier,
+                        priceId: priceId,
+                        currentPeriodEnd: endDate,
+                        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+                    },
+                    update: {
+                        status: subscription.status,
+                        plan: tier,
+                        priceId: priceId,
+                        currentPeriodEnd: endDate,
+                        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+                    }
+                });
+
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { tier: tier }
+                });
+                
+                console.log(`[Webhook] Success: Updated subscription for user ${user.id}`);
+                logger.info(`Updated Subscription for User ${user.id} to ${status} (${tier})`);
+            } catch (dbError) {
+                console.error("[Webhook] Database error updating subscription:", dbError);
+                throw dbError; // Re-throw to trigger 500 response
+            }
         } else {
+            console.warn(`[Webhook] Stripe Customer ${customerId} not found in DB`);
             logger.warn(`Stripe Customer ${customerId} not found in DB`);
         }
         break;
@@ -100,8 +119,10 @@ export async function POST(req: Request) {
       
       default:
         // Unhandled event type
+        console.log(`[Webhook] Unhandled event type: ${event.type}`);
     }
   } catch (error) {
+    console.error(`[Webhook] Error processing event ${event.type}:`, error);
     logger.error("Error handling webhook event", error);
     return NextResponse.json({ error: "Webhook Handler Error" }, { status: 500 });
   }

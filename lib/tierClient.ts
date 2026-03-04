@@ -4,9 +4,17 @@
 
 const TIER_STORAGE_KEY = "dev_tier";
 
+const ENV_TIER = process.env.NEXT_PUBLIC_DEV_TIER as "free" | "pro" | undefined;
+
 export function getClientTier(): "free" | "pro" {
   if (typeof window === "undefined") return "free";
+
+  // 1. Force via Env Var (npm run dev:free / dev:pro)
+  if (ENV_TIER === "free" || ENV_TIER === "pro") {
+    return ENV_TIER;
+  }
   
+  // 2. LocalStorage override
   const stored = localStorage.getItem(TIER_STORAGE_KEY);
   if (stored === "free" || stored === "pro") {
     return stored;

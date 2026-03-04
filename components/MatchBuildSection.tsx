@@ -4,6 +4,7 @@ import type { BuildData } from "@/types/match";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/lib/language";
+import { GlassCard } from "@/components/GlassCard";
 
 function BuildTitle({ variant }: { variant: "yours" | "opponent" }) {
   const { t } = useLanguage();
@@ -33,86 +34,88 @@ export function MatchBuildSection({
   const { t } = useLanguage();
   
   return (
-    <section className="mt-10 rounded-2xl border border-white/10 bg-black/5 p-4 sm:p-6">
-      <h3 className="mb-4 sm:mb-6 text-sm font-semibold uppercase tracking-wide text-white/60">
-        {t("build.title")}
-      </h3>
+    <section className="mt-10">
+      <GlassCard className="p-4 sm:p-6" hoverEffect>
+        <h3 className="mb-4 sm:mb-6 text-sm font-semibold uppercase tracking-wide text-white/60">
+          {t("build.title")}
+        </h3>
 
-      {/* Container unifié avec séparation visuelle */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-white/10 bg-black/30 overflow-hidden"
-      >
-        {/* Header unifié */}
-        <button
-          onClick={handleToggle}
-          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-white/80 hover:text-white transition-colors"
+        {/* Container unifié avec séparation visuelle */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-white/10 bg-black/30 overflow-hidden"
         >
-          <span>Comparaison des builds</span>
-          <motion.div
-            animate={{ rotate: isOpen ? 180 : 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
+          {/* Header unifié */}
+          <button
+            onClick={handleToggle}
+            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-white/80 hover:text-white transition-colors"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </motion.div>
-        </button>
-
-        {/* Contenu avec séparation */}
-        <AnimatePresence>
-          {isOpen && (
+            <span>Comparaison des builds</span>
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{
-                height: { duration: 0.4, ease: [0.4, 0, 0.2, 1] as const },
-                opacity: { duration: 0.3, delay: 0.1 },
-              }}
-              className="overflow-hidden"
+              animate={{ rotate: isOpen ? 180 : 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
             >
-              <div className="grid grid-cols-2 divide-x divide-white/10">
-                {/* Ton build */}
-                <div className="px-4 py-4">
-                  <BuildTitle variant="yours" />
-                  <BuildContent
-                    items={you.items}
-                    runes={you.runes}
-                    itemNames={you.itemNames}
-                    runeNames={you.runeNames}
-                    delay={0}
-                  />
-                </div>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </motion.div>
+          </button>
 
-                {/* Build adversaire */}
-                {opponent && (
+          {/* Contenu avec séparation */}
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{
+                  height: { duration: 0.4, ease: [0.4, 0, 0.2, 1] as const },
+                  opacity: { duration: 0.3, delay: 0.1 },
+                }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-2 divide-x divide-white/10">
+                  {/* Ton build */}
                   <div className="px-4 py-4">
-                    <BuildTitle variant="opponent" />
+                    <BuildTitle variant="yours" />
                     <BuildContent
-                      items={opponent.items}
-                      runes={opponent.runes}
-                      itemNames={opponent.itemNames}
-                      runeNames={opponent.runeNames}
-                      delay={0.1}
+                      items={you.items}
+                      runes={you.runes}
+                      itemNames={you.itemNames}
+                      runeNames={you.runeNames}
+                      delay={0}
                     />
                   </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+
+                  {/* Build adversaire */}
+                  {opponent && (
+                    <div className="px-4 py-4">
+                      <BuildTitle variant="opponent" />
+                      <BuildContent
+                        items={opponent.items}
+                        runes={opponent.runes}
+                        itemNames={opponent.itemNames}
+                        runeNames={opponent.runeNames}
+                        delay={0.1}
+                      />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </GlassCard>
     </section>
   );
 }
@@ -161,7 +164,7 @@ function BuildContent({
               
               return (
                 <motion.div
-                  key={id}
+                  key={`${id}-${idx}`}
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{

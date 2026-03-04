@@ -25,6 +25,7 @@ describe("Profile API", () => {
   });
 
   it("should skip matches not in cache", () => {
+    (matchCache.getMatch as jest.Mock).mockReturnValue(null);
     const cachedMatch = matchCache.getMatch("EUW1_999");
     expect(cachedMatch).toBeNull();
   });

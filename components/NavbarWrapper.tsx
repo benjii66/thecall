@@ -9,19 +9,27 @@ export async function NavbarWrapper() {
   const cookieStore = await cookies();
   const puuid = cookieStore.get("user_puuid")?.value;
   
-  let currentUser = { name: "InvitÃ©", tag: "" };
+  let currentUser = { name: "Invité", tag: "" };
+  let hasMatches = false;
 
   if (puuid) {
       try {
           const user = await prisma.user.findUnique({
               where: { riotPuuid: puuid },
-              select: { riotGameName: true, riotTagLine: true }
+              select: { 
+                  riotGameName: true, 
+                  riotTagLine: true,
+                  _count: {
+                      select: { matches: true }
+                  }
+              }
           });
           if (user?.riotGameName) {
               currentUser = { 
                   name: user.riotGameName, 
                   tag: user.riotTagLine || "" 
               };
+              hasMatches = (user._count.matches > 0);
           }
       } catch (e) {
           console.error("Failed to fetch navbar user", e);
@@ -30,7 +38,7 @@ export async function NavbarWrapper() {
 
   return (
     <Suspense fallback={<div className="h-16 w-full bg-[#05060b]" />}>
-      <Navbar currentUser={currentUser} />
+      <Navbar currentUser={currentUser} hasMatches={hasMatches} />
     </Suspense>
   );
 }

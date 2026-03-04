@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Brain, User, BarChart3, ArrowLeft, List, LogOut, CreditCard, ChevronDown, Settings } from "lucide-react";
+import { Sparkles, Brain, User, BarChart3, ArrowLeft, LogOut, CreditCard, ChevronDown, Settings, Hexagon } from "lucide-react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { useTransition, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -22,7 +22,7 @@ interface NavbarProps {
   };
 }
 
-export function Navbar({ currentUser }: NavbarProps) {
+export function Navbar({ currentUser, hasMatches }: NavbarProps & { hasMatches: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -72,83 +72,84 @@ export function Navbar({ currentUser }: NavbarProps) {
   return (
     <>
       <GlowOverlay show={showGlow} />
-      <nav className="relative mx-auto mt-4 sm:mt-6 max-w-6xl rounded-2xl border border-white/10 bg-black/40 px-4 sm:px-6 py-3 sm:py-4 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-2 sm:gap-4">
-        {/* Brand */}
-        <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-400" />
-          <div>
-            <div className="text-sm font-semibold tracking-wide">TheCall</div>
-            <div className="text-xs text-white/50">Macro Coach</div>
-          </div>
-        </Link>
+      <nav className="fixed left-1/2 top-6 z-50 -translate-x-1/2">
+        <div className="flex items-center gap-4 rounded-full border border-white/10 bg-black/60 p-2 pl-6 pr-2 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)] transition-all hover:bg-black/70">
+          
+          {/* Brand */}
+          <Link href="/" className="flex items-center gap-4 pr-6 group border-r border-white/10 mr-2">
+            <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-violet-500/20 to-cyan-400/20 border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.15)] transition-transform group-hover:scale-105">
+                <Hexagon size={20} className="text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-base font-bold tracking-tight text-white group-hover:text-cyan-200 transition-colors">TheCall</span>
+            </div>
+          </Link>
 
-        {/* Menu - Afficher uniquement si match sélectionné */}
-        {showTabs && (
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Bouton retour aux matchs */}
-            <motion.button
-              onClick={handleBackToMatches}
-              disabled={isPending}
-              className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-white/10 bg-black/20 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <ArrowLeft size={14} className="sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Retour aux matchs</span>
-              <List size={14} className="sm:hidden" />
-            </motion.button>
+          {/* Center Actions (Contextual) - Now integrated in flow */}
+          {showTabs && (
+              <div className="flex items-center gap-1">
+                 <motion.button
+                  onClick={handleBackToMatches}
+                  disabled={isPending}
+                  className="p-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition"
+                  title="Retour aux matchs"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <ArrowLeft size={16} />
+                </motion.button>
+                <div className="w-px h-4 bg-white/10 mx-1" />
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabClick(item.id)}
+                      className={`relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        isActive ? "text-white" : "text-white/50 hover:text-white/80"
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="nav-pill"
+                          className="absolute inset-0 rounded-full bg-white/10"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                      <Icon size={14} />
+                      <span className="relative z-10">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+          )}
 
-            {/* Tabs Overview/Coach */}
-            <div className="relative flex gap-1 sm:gap-2 rounded-xl bg-black/5 p-0.5 sm:p-1">
-              {items.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
+          {/* Right Actions */}
+          <div className="flex items-center gap-2 pl-2">
+            {/* Profile Button - ONLY VISIBLE IF HAS MATCHES */}
+            {hasMatches && (
+              <motion.button
+                onClick={handleProfileClick}
+                disabled={isPending}
+                className="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:border-white/20 hover:text-white transition-all shadow-[0_0_10px_rgba(255,255,255,0.02)]"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <BarChart3 size={14} className="text-cyan-400" />
+                <span>Profil</span>
+              </motion.button>
+            )}
 
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabClick(item.id)}
-                    className="relative z-10 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors hover:text-white"
-                    style={{ color: isActive ? "white" : "rgba(255,255,255,0.6)" }}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="nav-glow"
-                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-violet-500/30 to-cyan-400/30"
-                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                      />
-                    )}
-                    <Icon size={14} className="sm:w-4 sm:h-4" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
+            <PricingButton />
+            
+            <div className="pl-2 border-l border-white/10">
+               <UserMenu currentUser={currentUser} />
             </div>
           </div>
-        )}
 
-        {/* Profile & Links */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <motion.button
-            onClick={handleProfileClick}
-            disabled={isPending}
-            className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-white/10 bg-black/20 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <BarChart3 size={14} className="sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Profil</span>
-          </motion.button>
-          
-          {/* Bouton Pricing visible pour les utilisateurs free */}
-          <PricingButton />
-          
-          {/* User menu dropdown */}
-          <UserMenu currentUser={currentUser} />
         </div>
-      </div>
-    </nav>
+      </nav>
     </>
   );
 }
@@ -347,8 +348,13 @@ function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string }
           </div>
           <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-black/10">
             <User size={14} className="sm:w-4 sm:h-4" />
+            {!isFree && (
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[10px] font-bold text-black ring-2 ring-[#05060b]">
+                P
+              </span>
+            )}
             {isFree && (
-              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#05060b] bg-yellow-500" />
+                 <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#05060b] bg-yellow-500" />
             )}
           </div>
           <ChevronDown 

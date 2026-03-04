@@ -1,4 +1,6 @@
-// __tests__/components/ProfileInsightCard.test.tsx
+/**
+ * @jest-environment jsdom
+ */
 import { render, screen } from "@testing-library/react";
 import { ProfileInsightCard } from "@/components/ProfileInsightCard";
 import type { PlayerProfile } from "@/types/profile";

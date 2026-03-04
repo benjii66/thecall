@@ -146,6 +146,28 @@ const COACHING_SCHEMA = {
       },
       required: ["title", "exercises"],
       additionalProperties: false
+    },
+    buildAnalysis: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        critique: { type: "string" },
+        suggestions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              item: { type: "string" },
+              reason: { type: "string" },
+              replace: { type: "string" }
+            },
+            required: ["item", "reason", "replace"],
+            additionalProperties: false
+          }
+        }
+      },
+      required: ["title", "critique", "suggestions"],
+      additionalProperties: false
     }
   },
   required: [
@@ -156,7 +178,8 @@ const COACHING_SCHEMA = {
     "negatives",
     "rootCauses",
     "actionPlan",
-    "drills"
+    "drills",
+    "buildAnalysis"
   ],
   additionalProperties: false
 } as const;
@@ -226,7 +249,7 @@ const PROFILE_SCHEMA = {
                 count: { type: "number" },
                 pct: { type: "number" }
               },
-              required: ["metric", "value"],
+              required: ["metric", "value", "count", "pct"],
               additionalProperties: false
             }
           }
@@ -253,7 +276,7 @@ const PROFILE_SCHEMA = {
                 count: { type: "number" },
                 pct: { type: "number" }
               },
-              required: ["metric", "value"],
+              required: ["metric", "value", "count", "pct"],
               additionalProperties: false
             }
           }

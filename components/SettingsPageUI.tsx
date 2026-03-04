@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Settings, Globe, ArrowLeft } from "lucide-react";
+import { Settings, Globe, ArrowLeft, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/language";
+import { SubscriptionDetails } from "./SubscriptionDetails";
 
 export function SettingsPageUI() {
   const { language, setLanguage, t } = useLanguage();
@@ -98,6 +99,19 @@ export function SettingsPageUI() {
               {t("settings.saving")}
             </p>
           )}
+        </div>
+
+        {/* Subscription Section */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-md">
+           <div className="flex items-center gap-3 mb-6">
+            <CreditCard size={20} className="text-cyan-300" />
+            <div>
+              <h2 className="text-lg font-semibold">{t("settings.subscription") || "Abonnement"}</h2>
+              <p className="text-sm text-white/60 mt-0.5">{t("settings.subscriptionDesc") || "Gère ton plan et ta facturation"}</p>
+            </div>
+          </div>
+
+          <SubscriptionDetails />
         </div>
 
         {/* Future sections placeholder */}

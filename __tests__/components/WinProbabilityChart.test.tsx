@@ -1,3 +1,6 @@
+/**
+ * @jest-environment jsdom
+ */
 import { render, screen } from "@testing-library/react";
 import { WinProbabilityChart } from "@/components/WinProbabilityChart";
 import type { WinProbPoint } from "@/lib/winProbability";

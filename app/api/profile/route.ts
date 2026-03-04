@@ -121,6 +121,24 @@ function generateHeuristicInsights(
     });
   }
 
+  if (insights.length === 0) {
+    const roleAdvice = {
+      "Top": "Fais attention à tes timings de téléportation et gère mieux tes waves.",
+      "Jungle": "Optimise tes pathings pour être là aux objectifs neutres.",
+      "Mid": "Cherche à décaler plus souvent pour aider les side lanes.",
+      "Bot": "Concentre-toi sur ton positionnement en teamfight.",
+      "Support": "Améliore ta vision autour des objectifs majeurs."
+    };
+    const advice = roleAdvice[mainRole as keyof typeof roleAdvice] || "Continue à jouer pour débloquer plus d'analyses détaillées.";
+
+    insights.push({
+      type: "recommendation",
+      title: "Conseil Général",
+      description: `Aucun défaut majeur détecté pour l'instant. ${advice}`,
+      priority: "medium"
+    });
+  }
+
   return insights;
 }
 
@@ -162,14 +180,16 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
              // If we have seen this match, we MIGHT not need to fetch, BUT computeProfileData is called when we assume we need to update OR sync.
              // If we are forced to check, we check.
              
-             if (latestId !== lastMatchIdSeen) {
-                 // Fetch details and persist
-                 // This acts as the "Ingest" phase
+      if (latestId !== lastMatchIdSeen) {
+                 // Fetch details and persist (Light Sync)
+                 // We ONLY fetch Match Details (summary), NOT Timeline
+                 // This allows fast "Pre-fetch" of last 20 games for Profile Analysis
                   await Promise.all(matchIds.map(async id => {
                      try {
-                         // getRawMatch handles persistence
+                         // getRawMatch pulls match details & persists it
+                         // We use 'full' to ensure it's saved in DB, but we SKIP TimeLine fetch
                          await getRawMatch(id, userId, puuid, 'full'); 
-                         await getRawTimeline(id, userId);
+                         await getRawTimeline(id, userId); // <--- RE-ENABLED HEAVY TIMELINE FETCH
                      } catch (e) { logger.warn(`Failed to ingest match ${id}`, { error: e }); }
                   }));
 
@@ -599,6 +619,25 @@ LANGUAGE:
       insights = generateHeuristicInsights(roleStats, mainRole, aggression, objectiveFocus, teamFightPresence, overallWinRate);
   }
 
+
+  // Fallback if insights are empty (AI returned nothing or Heuristic failed)
+  if (insights.length === 0) {
+    const roleAdvice = {
+      "Top": "Fais attention à tes timings de téléportation et gère mieux tes waves.",
+      "Jungle": "Optimise tes pathings pour être là aux objectifs neutres.",
+      "Mid": "Cherche à décaler plus souvent pour aider les side lanes.",
+      "Bot": "Concentre-toi sur ton positionnement en teamfight.",
+      "Support": "Améliore ta vision autour des objectifs majeurs."
+    };
+    const advice = roleAdvice[mainRole as keyof typeof roleAdvice] || "Continue à jouer pour débloquer plus d'analyses détaillées.";
+
+    insights.push({
+      type: "recommendation",
+      title: "Analyse en cours",
+      description: `Nous avons besoin de plus de données pour débloquer les insights IA avancés. ${advice}`,
+      priority: "medium"
+    });
+  }
 
   const profile: PlayerProfile = {
     totalGames: matches.length,

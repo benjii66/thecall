@@ -27,7 +27,7 @@ const BASE_URL =
     ? `https://${process.env.VERCEL_URL}`
     : "http://localhost:3000");
 
-export function ProfilePageUI() {
+export function ProfilePageUI({ puuid }: { puuid?: string }) {
   const { t } = useLanguage();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [meta, setMeta] = useState<ProfileMeta | null>(null);
@@ -36,8 +36,12 @@ export function ProfilePageUI() {
 
   useEffect(() => {
     async function loadProfile() {
+      if (!puuid) {
+         setLoading(false);
+         return;
+      }
       try {
-        const res = await fetch(`${BASE_URL}/api/profile`, {
+        const res = await fetch(`${BASE_URL}/api/profile?puuid=${puuid}`, {
           cache: "no-store",
         });
 
@@ -134,7 +138,7 @@ export function ProfilePageUI() {
 
                   <div className="flex flex-col gap-4">
                     <div className="flex gap-4">
-                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md border border-white/10 p-4">
                         <p className="text-xs uppercase tracking-[0.2em] text-white/50">
                           {t("profile.mainRole")}
                         </p>
@@ -142,7 +146,7 @@ export function ProfilePageUI() {
                           {profile.mainRole}
                         </p>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md border border-white/10 p-4">
                         <p className="text-xs uppercase tracking-[0.2em] text-white/50">
                           {t("profile.winRate")}
                         </p>

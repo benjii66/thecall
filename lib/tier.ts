@@ -1,56 +1,45 @@
-// Helper pour vérifier le tier utilisateur
+// Helper pour vérifier le tier utilisateur (CLIENT-SIDE SAFE)
 import { TIER_LIMITS, type SubscriptionTier, type TierLimits } from "@/types/pricing";
 
-// Mode de développement : permet de forcer un tier via variable d'environnement
-// Côté serveur : process.env.DEV_TIER
-// Côté client : NEXT_PUBLIC_DEV_TIER (pour le dev uniquement)
-// Note: Dans Edge Runtime (middleware), window n'existe pas, donc on utilise toujours process.env.DEV_TIER
-const DEV_TIER = 
-  (typeof globalThis !== "undefined" && "window" in globalThis && typeof globalThis.window !== "undefined")
-    ? (process.env.NEXT_PUBLIC_DEV_TIER as SubscriptionTier | undefined)
-    : (process.env.DEV_TIER as SubscriptionTier | undefined);
+
 
 /**
  * Récupère le tier de l'utilisateur
- * En dev : utilise DEV_TIER si défini, sinon vérifie localStorage (côté client), sinon "free"
- * En prod : récupère depuis la session/DB (à implémenter avec auth)
+ * Côté Client : utilise NEXT_PUBLIC_DEV_TIER ou localStorage
+ * Côté Serveur (Edge/Node) : utilise process.env.DEV_TIER
  */
-export function getUserTier(userId?: string): SubscriptionTier {
-  // Mode développement : utiliser DEV_TIER si défini (priorité absolue)
-  // On vérifie d'abord process.env.DEV_TIER directement (côté serveur)
-  // puis la constante DEV_TIER (qui gère client/serveur)
-  const envDevTier = process.env.DEV_TIER as SubscriptionTier | undefined;
-  if (envDevTier === "free" || envDevTier === "pro") {
-    return envDevTier;
-  }
-  
-  if (DEV_TIER === "free" || DEV_TIER === "pro") {
-    return DEV_TIER;
+export function getUserTier(_userId?: string): SubscriptionTier {
+  // 1. Env Var Check (Server & Client)
+  // Logic duplicated from tierClient.ts for consistency
+  if (typeof window !== "undefined") {
+      const envTier = process.env.NEXT_PUBLIC_DEV_TIER as SubscriptionTier | undefined;
+      if (envTier === "free" || envTier === "pro") {
+          return envTier;
+      }
   }
 
-  // Côté client, vérifier localStorage (pour le mode dev)
-  // Note: Dans Edge Runtime (middleware), on ne peut pas accéder à localStorage
-  if (typeof globalThis !== "undefined" && "window" in globalThis && typeof globalThis.window !== "undefined") {
+  // Server side check
+  if (typeof window === "undefined") {
+    const devTier = process.env.DEV_TIER as SubscriptionTier | undefined;
+    if (devTier === "free" || devTier === "pro") {
+      return devTier;
+    }
+  }
+  
+  // 2. Client-side localStorage for Dev simulation
+  if (typeof window !== "undefined") {
     try {
       const stored = localStorage.getItem("dev_tier");
+      // console.log("[Tier] Checking localStorage:", stored);
       if (stored === "free" || stored === "pro") {
         return stored;
       }
     } catch {
-      // Ignore localStorage errors
+      // Ignore
     }
   }
 
-  // TODO: En production, récupérer depuis la DB/session
-  // Pour l'instant, on retourne "free" par défaut
-  if (!userId) {
-    return "free";
-  }
-
-  // TODO: Vérifier dans la DB si l'utilisateur a un abonnement actif
-  // const subscription = await getSubscription(userId);
-  // return subscription?.tier ?? "free";
-
+  // Default to free if no override found
   return "free";
 }
 
@@ -77,19 +66,18 @@ export function hasFeatureAccess(
   }
 
   if (typeof value === "number") {
-    return value === -1 || value > 0; // -1 = illimité
+    return value === -1 || value > 0;
   }
 
   if (typeof value === "string") {
-    // Les strings dans TierLimits sont toujours des valeurs valides ("mini" | "full" | "basic" | "premium")
     return true;
   }
-
   return false;
 }
 
 /**
- * Vérifie si l'utilisateur peut faire un coaching (vérifie le quota)
+ * Vérifie si l'utilisateur peut faire un coaching (Client-side estimation only)
+ * Pour la vraie vérification, utiliser l'API /api/tier ou /api/coaching
  */
 export async function canDoCoaching(userId?: string): Promise<{
   allowed: boolean;
@@ -99,32 +87,27 @@ export async function canDoCoaching(userId?: string): Promise<{
   const limits = getUserTierLimits(userId);
   const limit = limits.coachingPerMonth;
 
-  // Pro : illimité
   if (limit === -1) {
     return { allowed: true, remaining: -1, limit: -1 };
   }
 
-  // TODO: Récupérer le nombre de coachings ce mois depuis la DB
-  // const count = await getCoachingCountThisMonth(userId);
-  // Pour l'instant, on simule avec 0 (ou depuis localStorage en client)
   let count = 0;
-  
-  // En client-side, on peut utiliser localStorage pour simuler
-  // Note: Dans Edge Runtime (middleware), on ne peut pas accéder à localStorage
-  if (typeof globalThis !== "undefined" && "window" in globalThis && typeof globalThis.window !== "undefined") {
-    try {
-      const stored = localStorage.getItem("coaching_count");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const now = new Date();
-        const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
-        if (parsed.month === monthKey) {
-          count = parsed.count || 0;
+
+  // Only check localStorage on client
+  if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("coaching_count");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const now = new Date();
+          const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+          if (parsed.month === monthKey) {
+            count = parsed.count || 0;
+          }
         }
+      } catch {
+        // Ignore
       }
-    } catch {
-      // Ignore localStorage errors
-    }
   }
 
   const remaining = limit - count;
@@ -134,6 +117,9 @@ export async function canDoCoaching(userId?: string): Promise<{
     limit,
   };
 }
+
+// NOTE: incrementCoachingUsage removed from here as it requires Prisma.
+// It is now in lib/tier-server.ts
 
 /**
  * Vérifie si l'utilisateur a accès au profil global complet

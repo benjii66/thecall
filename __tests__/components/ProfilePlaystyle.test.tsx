@@ -1,4 +1,6 @@
-// __tests__/components/ProfilePlaystyle.test.tsx
+/**
+ * @jest-environment jsdom
+ */
 import { render, screen } from "@testing-library/react";
 import { ProfilePlaystyle } from "@/components/ProfilePlaystyle";
 import type { PlayerProfile } from "@/types/profile";

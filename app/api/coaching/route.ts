@@ -5,15 +5,15 @@ import { getMatchDetailsController } from "@/lib/controllers/matchController";
 import type { MatchPageData } from "@/types/match";
 import type { CoachingReport } from "@/types/coaching";
 import { computeWinProbability } from "@/lib/winProbability";
-import { getUserTier, canDoCoaching, getUserTierLimits } from "@/lib/tier";
+import { getUserTierServer, canDoCoachingServer, getUserTierLimitsServer, incrementCoachingUsage } from "@/lib/tier-server";
+
+
 import { validateJsonSize } from "@/lib/security";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { getCsrfTokenFromRequest, isSameOriginRequest, requiresCsrfProtection, validateCsrfToken } from "@/lib/csrf";
 import { logger } from "@/lib/logger";
 
 const COACHING_REPORT_VERSION = "v1";
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 
 import { generateCoachingReportStrict } from "@/lib/openai";
@@ -24,39 +24,36 @@ async function generateCoachingReport(
   isPremium: boolean = false
 ): Promise<CoachingReport & { quality?: string; modelUsed?: string }> {
   // 1. Fallback immédiat si FREE ou pas de clé API conf
-  if (!isPremium || !OPENAI_API_KEY) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!isPremium || !apiKey) {
     return { ...generateHeuristicReport(matchData, winProbData, isPremium), quality: "heuristic" };
   }
 
   try {
     const userPrompt = buildPrompt(matchData, winProbData, isPremium);
-    const systemPrompt = `You are TheCall, an elite League of Legends post-game coach (Master+).
+const systemPrompt = `You are TheCall, an elite League of Legends post-game coach (Challenger/Pro Tier).
 You analyze ONLY the provided match data. If something is missing, say "unknown" — never invent.
 
-Style:
-- Direct, concise, no fluff.
-- Actionable instructions with timestamps / windows when possible.
-- Focus on macro: tempo, resets, objectives, vision, rotations, wave states, punish windows.
+**Role & Persona**:
+You are a **Challenger Head Coach**. You are TOUGH, DIRECT, and STRICT.
+- No "Nice try", no "Good job". WE WANT TO WIN.
+- Point out mistakes ruthlessly.
+- If the build is bad, SAY IT. "Freezing heart vs 4 AP? trolling."
+- Focus on **Win Conditions** and **Macro**.
 
-Rules:
-- Keep the JSON short. Avoid long paragraphs.
-- Hard rule: If you don't see it in the data, you cannot claim it.
-- Output MUST be STRICT JSON matching the given schema. No extra keys, no markdown, no explanations outside JSON.
-- Advice must be specific: "what to do", "when", "why", "how to repeat".
-- Prefer 3–6 high-impact points over 20 generic ones.
-- If you propose a timing, base it on the match flow or say "around X min".
+**Process**:
+1. **Review the Preliminary Analysis**: Trust the maths provided.
+2. **Correlate with Timeline**: If the math says "Low CS", look at the Timeline to see *when* it stopped.
+3. **Analyze Build vs Matchup**:
+   - Critique BAD choices ruthlessly (e.g. Armor vs AP).
+   - **VALIDATE GOOD CHOICES**: If the build is perfect, say it! "Excellent adaptations, Maw of Malmortius against 3 AP carry was the winning move."
+   - Be specific: cite the item name and *why* it worked or failed.
+4. **Identify the Pivot Point**: Find the exact moment the game was lost.
 
-Content priorities:
-1) Biggest turning point(s): identify 1–2 moments that flipped the game.
-2) Root causes: 2–4 fundamental mistakes (not symptoms).
-3) Action plan: 3 immediate habits to apply next games.
-4) Drills: 2 drills that are measurable and repeatable.
-5) Punish windows: how to convert a lead or stabilize when behind.
-
-Constraints:
-- Avoid generic phrases like "play safer" or "focus objectives" unless you add a concrete trigger + action.
-- Use short bullet-like sentences inside JSON strings.
-- Keep total output compact.
+**Output Style**:
+- **Strict JSON** only.
+- **Short, punchy sentences**. No fluff.
+- **Actionable**: "Rotate to Drake at 14:00" > "Control objectives".
 
 Input:
 (Data provided in the user message below)
@@ -99,105 +96,68 @@ function buildPrompt(
     }
   }
 
-  // Objectifs pris/perdus avec détails
-  const objectives = timelineEvents.filter(
-    (e) => e.kind === "dragon" || e.kind === "herald" || e.kind === "baron" || e.kind === "tower"
-  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function safe(n: any) { return typeof n === 'number' ? n : 0; }
+  const gameDurationMin = (winProb[winProb.length - 1]?.minute || 20);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const myCS = safe((me as any).cs); 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const myLevel = safe((me as any).level);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const opponentCS = safe((opponent as any)?.cs);
 
-  const allyObjectives = objectives.filter((e) => e.team === "ally");
-  const enemyObjectives = objectives.filter((e) => e.team === "enemy");
+  const csPerMin = (myCS / gameDurationMin).toFixed(1);
 
-  // Analyser les builds
-  const myItems = me.build.items.filter((id) => id !== "0");
-  const opponentItems = opponent?.build.items.filter((id) => id !== "0") ?? [];
+  // Extract Builds with Names
+  const myItems = me.build.items.map(id => me.build.itemNames?.[id] || id).join(", ");
+  const opItems = opponent?.build.items.map(id => opponent.build.itemNames?.[id] || id).join(", ") || "Unknown";
 
-  // Détecter patterns d'erreurs récurrents
-  const earlyDeaths = timelineEvents.filter(
-    (e) => e.kind === "death" && e.involved && e.minute < 10
-  ).length;
+  // 1. Generate Heuristic Baseline
+  const heuristicReport = generateHeuristicReport(matchData, winProbData, isPremium);
+  
+  // 2. Format Timeline (Compressed)
+  const compressedTimeline = formatTimelineEvents(timelineEvents);
 
-  const lateGameDeaths = timelineEvents.filter(
-    (e) => e.kind === "death" && e.involved && e.minute > 25
-  ).length;
+  // 3. Construct Augmented Prompt
+  return `Analyse cette partie de League of Legends.
+  
+  **PRELIMINARY ANALYSIS (MATHS)** - Use this as a factual baseline:
+  - **Review**: ${JSON.stringify(heuristicReport.focus)}
+  - **Strength**: ${JSON.stringify(heuristicReport.positives[0])}
+  - **Weakness**: ${JSON.stringify(heuristicReport.negatives[0])}
+  - **Key Moment Calculation**: ${JSON.stringify(heuristicReport.turningPoint)}
+  
+  **CONTEXT**:
+  - **Game Version**: ${matchData.gameVersion}
+  - **Résultat**: ${me.win ? "VICTOIRE" : "DÉFAITE"}
+  - **Matchup**: ${me.role} (${me.champion}) vs ${opponent?.champion || "Unknown"}
+  - **Stats**: KDA ${me.kda} | CS ${myCS} (${csPerMin}/min) | Gold ${me.gold} | Lvl ${myLevel} | KP ${me.kp}%
+  - **My Build**: ${myItems}
+  - **Opponent Build**: ${opItems}
+  - **Opponent**: CS ${opponentCS} | Gold ${opponent?.gold} | KP ${opponent?.kp}%
+  
+  **TIMELINE (Compressed)**:
+  ${compressedTimeline}
+  
+  **YOUR MISSION**:
+  Using the Preliminary Analysis and the Timeline, generate a **PREMIUM COACHING REPORT** that explains *WHY* the stats are what they are. 
+  - If "Farming & Ressources" is the focus, look at the timeline to see *where* the farm was lost.
+  - If "Presence" is low, identifying missed rotations in the timeline.
+  
+  ${isPremium ? `**INSTRUCTIONS PREMIUM**:
+  - ADAPTE TES CONSEILS AU RÔLE (${me.role}): Un Toplaner ne joue pas comme un Support.
+  - Analyse en profondeur le build (si fourni) et les timings.
+  - Sois précis sur les timings (ex: "À 14:30, reset 40s avant Drake").` : ""}
 
-  // Gold efficiency
-  const goldSpent = myItems.length * 1000; // Estimation
-  const goldEfficiency = me.gold > 0 ? (goldSpent / me.gold) * 100 : 0;
-
-  // KP timing analysis
-  const earlyKP = timelineEvents
-    .filter((e) => (e.kind === "kill" || e.kind === "assist") && e.involved && e.minute < 15)
-    .length;
-  const midKP = timelineEvents.filter(
-    (e) =>
-      (e.kind === "kill" || e.kind === "assist") &&
-      e.involved &&
-      e.minute >= 15 &&
-      e.minute < 25
-  ).length;
-
-  const premiumContext = isPremium
-    ? `
-
-**ANALYSE PREMIUM**:
-
-**Build Analysis**:
-- Tes items: ${myItems.join(", ") || "Aucun"}
-- Items opponent: ${opponentItems.join(", ") || "N/A"}
-- Gold efficiency: ${goldEfficiency.toFixed(0)}%
-- Build cohérent: ${myItems.length >= 3 ? "Oui" : "Non (items manquants)"}
-
-**Patterns détectés**:
-- Morts early game (<10min): ${earlyDeaths} ${earlyDeaths > 2 ? "(Trop de morts early)" : ""}
-- Morts late game (>25min): ${lateGameDeaths} ${lateGameDeaths > 3 ? "(Décisions risquées en late)" : ""}
-- KP early (0-15min): ${earlyKP} ${earlyKP < 1 ? "(Manque de présence early)" : ""}
-- KP mid (15-25min): ${midKP} ${midKP < 2 ? "(Participation mid faible)" : ""}
-
-**Objectifs détaillés**:
-- Alliés: ${allyObjectives.map((o) => `${o.minute}min ${o.label}`).join(", ") || "Aucun"}
-- Ennemis: ${enemyObjectives.map((o) => `${o.minute}min ${o.label}`).join(", ") || "Aucun"}
-- Différence: ${allyObjectives.length - enemyObjectives.length} objectifs
-
-**Contexte supplémentaire**:
-- Matchup: ${me.champion} (${me.role}) vs ${opponent?.champion || "N/A"} (${opponent?.role || "N/A"})
-- Durée: ${Math.floor(winProb[winProb.length - 1]?.minute || 0)} minutes
-- Résultat: ${me.win ? "Victoire" : "Défaite"}`
-    : "";
-
-  return `Analyse cette partie de League of Legends et génère un rapport coaching ${isPremium ? "PREMIUM et détaillé" : "essentiel"}.
-
-**Résultat**: ${me.win ? "VICTOIRE" : "DÉFAITE"}
-**Rôle**: ${me.role} (${me.champion})
-**Opponent**: ${opponent?.champion || "N/A"} (${opponent?.role || "N/A"})
-
-**Stats**:
-- KDA: ${me.kda} (KP: ${me.kp}%)
-- Gold: ${me.gold.toLocaleString()}
-- Opponent KDA: ${opponent?.kda || "N/A"} (KP: ${opponent?.kp || 0}%)
-- Opponent Gold: ${opponent?.gold.toLocaleString() || "N/A"}
-
-**Objectifs**:
-- Alliés: ${allyObjectives.length} (dragon, herald, baron, towers)
-- Ennemis: ${enemyObjectives.length}
-${isPremium ? `- Détails alliés: ${allyObjectives.map((o) => `${o.minute}min ${o.label}`).join(", ") || "Aucun"}\n- Détails ennemis: ${enemyObjectives.map((o) => `${o.minute}min ${o.label}`).join(", ") || "Aucun"}` : ""}
-
-**Turning Points détectés**:
-${turningPoints
-  .map(
-    (tp) =>
-      `- ${tp.minute} min: ${tp.change > 0 ? "+" : ""}${tp.change.toFixed(1)}% win prob${tp.event ? ` (${tp.event})` : ""}`
-  )
-  .join("\n") || "Aucun turning point significatif détecté"}
-
-**Win Probability finale**: ${winProb[winProb.length - 1]?.probability || 50}%${premiumContext}
-
-${isPremium ? `**INSTRUCTIONS PREMIUM**:
-- Analyse en profondeur le build (items/rune cohérence, timing d'achat)
-- Identifie les patterns d'erreurs récurrents (morts répétées, objectifs manqués)
-- Donne des conseils macro avancés (rotations, tempo, vision)
-- Compare avec le meta actuel du patch 14.18
-- Propose des alternatives concrètes (items, runes, stratégie)
-- Sois précis sur les timings (ex: "À 14:30, reset 40s avant Drake")` : ""}
+  
+  ${isPremium ? `**INSTRUCTIONS PREMIUM**:
+  - ADAPTE TES CONSEILS AU RÔLE (${me.role}): Un Toplaner ne joue pas comme un Support (focus splitpush vs vision).
+  - IDENTIFIE LE CS DIFFERENTIAL: Si ${csPerMin} < 6, c'est un problème majeur de farming.
+  - Analyse en profondeur le build (items/rune cohérence, timing d'achat)
+  - Identifie les patterns d'erreurs récurrents (morts répétées, objectifs manqués)
+  - Donne des conseils macro avancés (rotations, tempo, vision)
+  - Propose des alternatives concrètes (items, runes, stratégie)
+  - Sois précis sur les timings (ex: "À 14:30, reset 40s avant Drake")` : ""}
 
 Génère un rapport JSON avec cette structure exacte:
 {
@@ -252,6 +212,17 @@ Génère un rapport JSON avec cette structure exacte:
       }
     ]
   },
+  "buildAnalysis": {
+    "title": "Analyse du Build",
+    "critique": "Critique directe de ton build vs l'équipe adverse. (Ex: 'Tu n'as pas d'anti-heal contre Soraka')",
+    "suggestions": [
+      {
+        "item": "Nom de l'item suggéré (ex: Morellonomicon)",
+        "reason": "Pourquoi cet item était meilleur dans cette game ?",
+        "replace": "Quel item de ton build il fallait remplacer"
+      }
+    ]
+  },
   "drills": {
     "title": "Drills / exercices",
     "exercises": [
@@ -269,169 +240,9 @@ Réponds UNIQUEMENT avec le JSON, pas de texte avant/après.`;
 
 
 
-function generateHeuristicReport(
-  matchData: MatchPageData,
-  winProbData: ReturnType<typeof computeWinProbability>,
-  isPremium: boolean = false
-): CoachingReport {
-  const { me, timelineEvents } = matchData;
-  const winProb = winProbData;
 
-  // Détecter turning point (plus grande chute/remontée)
-  let maxChange = 0;
-  let turningPointMinute = 0;
-  for (let i = 1; i < winProb.length; i++) {
-    const change = winProb[i].probability - winProb[i - 1].probability;
-    if (Math.abs(change) > Math.abs(maxChange)) {
-      maxChange = change;
-      turningPointMinute = winProb[i].minute;
-    }
-  }
 
-  const turningPointEvent = timelineEvents.find(
-    (e) => e.minute === turningPointMinute
-  );
-
-  const objectives = timelineEvents.filter(
-    (e) => e.kind === "dragon" || e.kind === "herald" || e.kind === "baron"
-  );
-  const allyObjectives = objectives.filter((e) => e.team === "ally").length;
-  const enemyObjectives = objectives.filter((e) => e.team === "enemy").length;
-  
-  // Analyser pour sections premium
-  const earlyDeaths = timelineEvents.filter(
-    (e) => e.kind === "death" && e.involved && e.minute < 10
-  );
-  // midGameDeaths calculé mais non utilisé pour l'instant (réservé pour futures améliorations)
-  const objectiveLosses = timelineEvents.filter(
-    (e) => (e.kind === "dragon" || e.kind === "herald" || e.kind === "baron") && e.team === "enemy"
-  );
-
-  return {
-    turningPoint: {
-      type: "turning_point",
-      title: "Moment clé",
-      description: turningPointEvent
-        ? `${turningPointMinute}:00 — ${turningPointEvent.label}`
-        : `${turningPointMinute}:00 — Changement de tempo`,
-      timestamp: `${turningPointMinute}:${String(Math.floor((turningPointMinute % 1) * 60)).padStart(2, "0")}`,
-      impact: `${maxChange > 0 ? "+" : ""}${maxChange.toFixed(0)}% win prob`,
-    },
-    focus: {
-      type: "focus",
-      title: "Focus prioritaire",
-      description:
-        allyObjectives < enemyObjectives
-          ? "Objectifs : prioriser la présence et la vision avant les drakes/herald/baron"
-          : me.kp < 50
-          ? "Participation : augmenter ta présence en fights (roams, rotations)"
-          : "Tempo : maintenir l'avantage et convertir en objectifs",
-    },
-    action: {
-      type: "action",
-      title: "Action next game",
-      description: "Reset + vision 40s avant le spawn du premier objectif",
-    },
-    positives: [
-      {
-        type: "positive",
-        title: "Point fort",
-        description: me.kp > 60 ? "Bonne participation en fights" : "Build cohérent",
-      },
-    ],
-    negatives: [
-      {
-        type: "negative",
-        title: "Point à améliorer",
-        description:
-          allyObjectives < enemyObjectives
-            ? "Objectifs perdus : focus vision et timing"
-            : "KP perfectible : plus de présence en mid game",
-      },
-    ],
-    // Sections premium avec données heuristiques (uniquement si isPremium = true)
-    ...(isPremium ? {
-      rootCauses: {
-        title: "Causes racines",
-        causes: [
-          {
-            cause: allyObjectives < enemyObjectives
-              ? "Objectifs perdus par manque de vision"
-              : earlyDeaths.length > 2
-              ? "Morts répétées en early game"
-              : "Tempo lâché en mid game",
-            evidence: [
-              objectiveLosses.length > 0
-                ? `${objectiveLosses[0]?.minute || turningPointMinute}:00 — Objectif perdu (vision insuffisante)`
-                : `${turningPointMinute}:00 — Changement de tempo détecté`,
-              earlyDeaths.length > 0
-                ? `${earlyDeaths[0]?.minute || 5}:00 — Mort early game (${earlyDeaths.length} mort(s) avant 10min)`
-                : `${turningPointMinute}:00 — Win prob chute de ${Math.abs(maxChange).toFixed(0)}%`,
-              me.kp < 50
-                ? "KP faible : participation limitée aux fights"
-                : "Gold non converti en objectifs",
-            ],
-            timing: `${turningPointMinute}:${String(Math.floor((turningPointMinute % 1) * 60)).padStart(2, "0")}`,
-          },
-        ],
-      },
-      actionPlan: {
-      title: "Plan d'action",
-      rules: [
-        {
-          rule: allyObjectives < enemyObjectives
-            ? "Setup vision 40s avant chaque objectif"
-            : "Maintenir tempo après lead",
-          phase: "early",
-          antiErrors: [
-            "Ne pas rester en lane sans vision",
-            "Éviter les fights 2v3 sans backup",
-          ],
-        },
-        {
-          rule: "Convertir gold lead en objectifs",
-          phase: "mid",
-          antiErrors: [
-            "Ne pas back pendant spawn objet",
-            "Éviter les roams inutiles sans impact",
-          ],
-        },
-        {
-          rule: "Prioriser sécurité en late game",
-          phase: "late",
-          antiErrors: [
-            "Ne pas split push sans vision",
-            "Respecter les cooldowns ultimes",
-          ],
-        },
-      ],
-    },
-      drills: {
-      title: "Drills / exercices",
-      exercises: [
-        {
-          exercise: me.kp < 50
-            ? "Améliorer la participation en fights"
-            : "Optimiser le timing des objectifs",
-          description: me.kp < 50
-            ? "Sur 5 games, vise 65%+ KP en te concentrant sur les rotations et la présence en mid game"
-            : "Sur 5 games, focus sur le setup vision 40s avant chaque Drake/Herald",
-          games: 5,
-        },
-        {
-          exercise: earlyDeaths.length > 1
-            ? "Réduire les morts early game"
-            : "Améliorer la gestion des ressources",
-          description: earlyDeaths.length > 1
-            ? "Sur 3 games, limite à 1 mort max avant 10min en jouant plus safe"
-            : "Sur 3 games, optimise tes backs et ton gold spending pour être présent aux objectifs",
-          games: 3,
-        },
-      ],
-    },
-    } : {}),
-  };
-}
+ 
 
 import { prisma } from "@/lib/prisma"; // Added import
 
@@ -445,6 +256,8 @@ import { ensureUser } from "@/lib/db/ensureUser";
 import { persistMatchJson } from "@/lib/db/persistMatchJson";
 import { persistTimelineJson } from "@/lib/db/persistTimelineJson";
 import { getRawMatch, getRawTimeline } from "@/lib/controllers/matchController";
+import { formatTimelineEvents } from "@/lib/timelineUtils";
+import { generateHeuristicReport } from "@/lib/coachingUtils";
 // ... (keep generic helpers like generateCoachingReport etc) ...
 
 // Main POST handler:
@@ -508,9 +321,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Check Tier/Quota
-    const tier = getUserTier(userId); // Works even if userId undefined (returns free)
-    const limits = getUserTierLimits(userId);
-    const quota = await canDoCoaching(userId);
+    const tier = getUserTierServer(userId); 
+    const limits = getUserTierLimitsServer(userId);
+    const quota = await canDoCoachingServer(userId);
     
     if (!quota.allowed) {
         return NextResponse.json({ 
@@ -616,14 +429,15 @@ export async function POST(req: NextRequest) {
     const result = await generateCoachingReport(matchData, winProbData, isPremium);
     
     // Extract flags from result (added in generateCoachingReport)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const reportQuality = (result as any).quality || (isPremium ? "premium" : "heuristic");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const modelUsed = (result as any).modelUsed || null;
 
     // Clean result to be just CoachingReport for persistent storage JSON
-    // (We cast to any to drop extra props temporary, logic below handles it)
-    const reportToStore = { ...result };
-    delete (reportToStore as any).quality;
-    delete (reportToStore as any).modelUsed;
+    const reportToStore: Record<string, unknown> = { ...result };
+    delete reportToStore.quality;
+    delete reportToStore.modelUsed;
 
     // 4. Persist Report
     if (dbMatchId) {
@@ -660,7 +474,9 @@ export async function POST(req: NextRequest) {
     // If we fell back to heuristic, we DO NOT consume quota
     let remaining = quota.remaining;
     if (isPremium && reportQuality === "premium") {
-        // TODO: Call decrement service here if implemented
+        if (userId) {
+            await incrementCoachingUsage(userId);
+        }
         remaining = quota.remaining - 1; 
     }
 

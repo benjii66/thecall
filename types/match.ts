@@ -14,6 +14,11 @@ export type PlayerSummary = {
   kda: string;
   kp: number; // ← KP %
   gold: number;
+  cs: number; // ← Creep Score (minions + jungle)
+  level: number; // ← Champion Level
+  visionScore: number;
+  damage: number;
+  deaths: number;
 
   win: boolean; // ← victoire / défaite
 
@@ -33,6 +38,8 @@ export type MatchPageData = {
 
   allyTeam: TeamPlayer[];
   enemyTeam: TeamPlayer[];
+
+  gameVersion: string;
 };
 
 // types/match.ts

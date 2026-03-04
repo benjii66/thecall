@@ -375,6 +375,18 @@ export async function getMatchDetailsController(matchId: string, puuid: string):
         const opponentItemNames = opponentRaw ? await mapItemsToNames(opponentItemIds) : {};
         const opponentRuneNames = opponentRaw ? mapRunesToNames(opponentRuneIds, runeJson) : {};
 
+        const myCS = safeNumber(meRaw.totalMinionsKilled) + safeNumber(meRaw.neutralMinionsKilled);
+        const myLevel = safeNumber(meRaw.champLevel);
+        const myVision = safeNumber(meRaw.visionScore);
+        const myDamage = safeNumber(meRaw.totalDamageDealtToChampions);
+
+        const opponentCS = opponentRaw 
+            ? safeNumber(opponentRaw.totalMinionsKilled) + safeNumber(opponentRaw.neutralMinionsKilled)
+            : 0;
+        const opponentLevel = opponentRaw ? safeNumber(opponentRaw.champLevel) : 0;
+        const opponentVision = opponentRaw ? safeNumber(opponentRaw.visionScore) : 0;
+        const opponentDamage = opponentRaw ? safeNumber(opponentRaw.totalDamageDealtToChampions) : 0;
+
         return {
             timelineEvents,
             me: {
@@ -384,6 +396,11 @@ export async function getMatchDetailsController(matchId: string, puuid: string):
                 kda: formatKDA(safeNumber(meRaw.kills), safeNumber(meRaw.deaths), safeNumber(meRaw.assists)),
                 kp: myKP,
                 gold: safeNumber(meRaw.goldEarned),
+                cs: myCS,
+                level: myLevel,
+                visionScore: myVision,
+                damage: myDamage,
+                deaths: safeNumber(meRaw.deaths),
                 build: {
                     items: myItemIds,
                     runes: myRuneIcons,
@@ -398,6 +415,11 @@ export async function getMatchDetailsController(matchId: string, puuid: string):
                 kda: formatKDA(safeNumber(opponentRaw.kills), safeNumber(opponentRaw.deaths), safeNumber(opponentRaw.assists)),
                 kp: enemyKills > 0 ? Math.round(((safeNumber(opponentRaw.kills) + safeNumber(opponentRaw.assists)) / enemyKills) * 100) : 0,
                 gold: safeNumber(opponentRaw.goldEarned),
+                cs: opponentCS,
+                level: opponentLevel,
+                visionScore: opponentVision,
+                damage: opponentDamage,
+                deaths: opponentRaw ? safeNumber(opponentRaw.deaths) : 0,
                 build: {
                     items: opponentItemIds,
                     runes: opponentRuneIcons,
@@ -407,6 +429,7 @@ export async function getMatchDetailsController(matchId: string, puuid: string):
             } : null,
             allyTeam: ally.map((p) => ({ champion: p.championName, kda: formatKDA(safeNumber(p.kills), safeNumber(p.deaths), safeNumber(p.assists)) })),
             enemyTeam: enemy.map((p) => ({ champion: p.championName, kda: formatKDA(safeNumber(p.kills), safeNumber(p.deaths), safeNumber(p.assists)) })),
+            gameVersion: match.info.gameVersion,
         };
     } catch (err) {
         logger.error("Error in getMatchDetailsController", { error: err, matchId });

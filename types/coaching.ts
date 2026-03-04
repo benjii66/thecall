@@ -34,6 +34,16 @@ export type Drills = {
   }>;
 };
 
+export type BuildAnalysis = {
+  title: string;
+  critique: string;
+  suggestions: Array<{
+    item: string;
+    reason: string;
+    replace: string;
+  }>;
+};
+
 export type CoachingReport = {
   turningPoint?: CoachingInsight;
   focus?: CoachingInsight;
@@ -45,4 +55,6 @@ export type CoachingReport = {
   rootCauses?: RootCauses;
   actionPlan?: ActionPlan;
   drills?: Drills;
+  buildAnalysis?: BuildAnalysis;
+  quality?: string;
 };

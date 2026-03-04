@@ -1,0 +1,42 @@
+
+> thecall@0.1.0 build
+> prisma generate && next build
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (7.2.0) to .\lib\generated\prisma in 60ms
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · cpus: 1
+
+ ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ ✓ Compiled successfully in 3.5s
+   Running TypeScript ...
+   Collecting page data using 1 worker ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 1 worker (0/22) ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 1 worker (5/22) 
+   Generating static pages using 1 worker (10/22) 
+   Generating static pages using 1 worker (16/22) 
+ ⨯ useSearchParams() should be wrapped in a suspense boundary at page "/pricing". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+    at S (D:\Projets\TheCall\thecall\.next\server\chunks\ssr\node_modules_next_cf02c53c._.js:2:2111)
+    at p (D:\Projets\TheCall\thecall\.next\server\chunks\ssr\node_modules_next_cf02c53c._.js:4:4847)
+    at k (D:\Projets\TheCall\thecall\.next\server\chunks\ssr\[root-of-the-server]__fd98f0cb._.js:1:2384)
+    at ar (D:\Projets\TheCall\thecall\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:84366)
+    at aa (D:\Projets\TheCall\thecall\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:86185)
+    at aa (D:\Projets\TheCall\thecall\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:104714)
+    at as (D:\Projets\TheCall\thecall\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:107952)
+    at ao (D:\Projets\TheCall\thecall\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:105374)
+    at ap (D:\Projets\TheCall\thecall\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:112881)
+    at al (D:\Projets\TheCall\thecall\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:109984)
+Error occurred prerendering page "/pricing". Read more: https://nextjs.org/docs/messages/prerender-error
+Export encountered an error on /pricing/page: /pricing, exiting the build.
+ ⨯ Next.js build worker exited with code: 1 and signal: null

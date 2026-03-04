@@ -14,7 +14,7 @@ export function MatchErrorMessages({ error }: { error?: string }) {
         {error || t("matches.errorDesc")}
       </p>
       {error && (
-        <div className="mt-4 rounded-lg border border-red-500/30 bg-black/40 p-4 text-left">
+        <div className="mt-4 rounded-lg border border-red-500/30  p-4 text-left">
           <p className="text-xs font-semibold text-red-200 mb-2">
             {t("matches.errorSolution")}
           </p>
@@ -77,7 +77,7 @@ export function MatchNoOpponentMessage() {
   const { t } = useLanguage();
   
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-white/60">
+    <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-6 text-white/60">
       {t("match.noOpponent")}
     </div>
   );

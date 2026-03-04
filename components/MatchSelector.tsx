@@ -1,11 +1,13 @@
 "use client";
 
-import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { ChevronDown } from "lucide-react";
+import Image from "next/image";
 import { LoadingSpinner } from "./LoadingSpinner";
 import type { MatchListItem } from "@/types/matchList";
+import { GlassDropdown } from "@/components/GlassDropdown";
+
+const DD_VERSION = "14.23.1";
 
 export function MatchSelector({
   matches,
@@ -18,8 +20,7 @@ export function MatchSelector({
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const matchId = e.target.value;
+  function onChange(matchId: string) {
     if (!matchId || matchId === selected) return;
 
     startTransition(() => {
@@ -29,30 +30,35 @@ export function MatchSelector({
     });
   }
 
+  const options = matches.map((m) => ({
+    value: m.id,
+    label: m.label,
+    icon: (
+      <div className="relative h-5 w-5 rounded-full overflow-hidden border border-white/20">
+        <Image
+          src={`https://ddragon.leagueoflegends.com/cdn/${DD_VERSION}/img/champion/${m.champion}.png`}
+          alt={m.champion}
+          fill
+          className="object-cover"
+        />
+      </div>
+    ),
+  }));
+
   return (
-    <div className="relative">
-      <select
+    <div className="relative z-10 w-full sm:w-[320px]">
+      <GlassDropdown
         value={selected}
         onChange={onChange}
+        options={options}
         disabled={isPending}
-        className="rounded-lg bg-black/40 border border-white/10 px-3 py-2 pr-8 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {matches.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-      </select>
-
-      {isPending ? (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+        className="w-full"
+        maxHeight="400px"
+      />
+      {isPending && (
+        <div className="absolute right-10 top-1/2 -translate-y-1/2 pointer-events-none">
           <LoadingSpinner size={14} />
         </div>
-      ) : (
-        <ChevronDown
-          size={16}
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/50"
-        />
       )}
     </div>
   );

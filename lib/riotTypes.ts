@@ -36,6 +36,11 @@ export type RiotParticipant = {
   assists: number;
 
   goldEarned: number;
+  totalMinionsKilled: number;
+  neutralMinionsKilled: number;
+  champLevel: number;
+  visionScore: number;
+  totalDamageDealtToChampions: number;
 
   win: boolean;
   // items...
@@ -61,6 +66,7 @@ export type RiotMatch = {
   };
   info: {
     gameCreation: number;
+    gameVersion: string;
     queueId: number;
     gameDuration: number;
     participants: RiotParticipant[];

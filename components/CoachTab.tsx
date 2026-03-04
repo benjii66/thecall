@@ -9,6 +9,7 @@ import { getUserTier, canDoCoaching } from "@/lib/tier";
 import { useLanguage } from "@/lib/language";
 
 import { CoachTabSkeleton } from "./CoachTabSkeleton";
+import { BuildAnalysisCard } from "@/components/BuildAnalysisCard";
 import type { MatchPageData } from "@/types/match";
 
 interface CoachTabProps {
@@ -56,17 +57,21 @@ export function CoachTab({
 
   const loadingRef = useRef(false);
 
+  // Effect 1: Sync initialReport when it changes
   useEffect(() => {
-    // If we have an initial report for this match, use it and don't fetch
     if (initialReport) {
       setReport(initialReport);
       setLoading(false);
       setIsCached(false);
-      return;
     }
+  }, [initialReport]);
 
-    // No initial report: clear previous state and fetch
+  // Effect 2: Fetch data if no initialReport is present
+  useEffect(() => {
+    if (initialReport) return;
+
     setReport(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     setLoading(true);
     setError(null);
     setIsCached(false);
@@ -75,12 +80,11 @@ export function CoachTab({
     const controller = new AbortController();
     loadingRef.current = true;
     const startTime = Date.now();
-    const MIN_LOADING_TIME = 2500; // 2.5s minimum "fun" time
+    const MIN_LOADING_TIME = 2500;
 
     fetch("/api/coaching", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // Send matchData to avoid server-side re-fetch
       body: JSON.stringify({ matchId, matchData }),
       signal: controller.signal
     })
@@ -88,7 +92,6 @@ export function CoachTab({
         if (!res.ok) throw new Error("Erreur de chargement service coaching");
         const data = await res.json();
         
-        // Artificial delay if needed
         const elapsed = Date.now() - startTime;
         if (elapsed < MIN_LOADING_TIME) {
             await new Promise(r => setTimeout(r, MIN_LOADING_TIME - elapsed));
@@ -120,7 +123,8 @@ export function CoachTab({
       isActive = false;
       loadingRef.current = false;
     };
-  }, [matchId, initialReport]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, matchData, initialReport]);
 
   useEffect(() => {
     // Récupérer le tier depuis l'API (pour avoir accès à DEV_TIER côté serveur)
@@ -193,11 +197,11 @@ export function CoachTab({
                 </span>
             )}
             
-            {(report && (report as any).quality === "premium") ? (
+            {report && report.quality === "premium" ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">
                     <span className="mr-0.5">🤖</span> AI Analysis
                 </span>
-            ) : (report && (report as any).quality?.includes("heuristic")) ? (
+            ) : (report && report.quality?.includes("heuristic")) ? (
                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs font-medium text-white/50">
                     <span className="mr-0.5">🧠</span> Standard
                 </span>
@@ -340,6 +344,11 @@ export function CoachTab({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Build Analysis (Premium / AI) */}
+            {report && report.buildAnalysis && (
+                <BuildAnalysisCard analysis={report.buildAnalysis} />
             )}
         </div>
 

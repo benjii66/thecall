@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
     // Optimisation activée pour améliorer les performances
     unoptimized: true, // Enabled for reliable production capability with external images
   },
+  experimental: {
+     // Limit workers to avoid OOM on build
+     cpus: 1,
+     workerThreads: false,
+  },
   // Headers de sécurité globaux
   async headers() {
     return [
