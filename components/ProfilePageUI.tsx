@@ -27,7 +27,6 @@ type ProfileMeta = {
 export function ProfilePageUI({ puuid }: { puuid?: string }) {
   const { t } = useLanguage();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
-  const [meta, setMeta] = useState<ProfileMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<{ message: string; hint: string } | null>(null);
@@ -83,7 +82,6 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
                 if (finalRes.ok) {
                     const finalJson = await finalRes.json();
                     setProfile(finalJson.profile ?? null);
-                    setMeta(finalJson.meta ?? null);
                 }
             } else {
                 setError({
@@ -93,7 +91,6 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
             }
         } else {
             setProfile(json.profile ?? null);
-            setMeta(json.meta ?? null);
             if (!json.profile) {
               setError({
                 message: t("profile.unavailableDesc"),

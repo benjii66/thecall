@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 async function main() {
   const users = await prisma.user.findMany({
@@ -10,8 +9,7 @@ async function main() {
       tier: true,
       subscription: {
         select: {
-          status: true,
-          stripeSubscriptionId: true
+          status: true
         }
       }
     }

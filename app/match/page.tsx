@@ -202,7 +202,7 @@ export default async function Home({
   const { generateHeuristicReport } = await import("@/lib/coachingUtils");
   const { getUserTierServer, canDoCoachingServer } = await import("@/lib/tier-server");
   
-  const coachingTier = getUserTierServer(userId);
+  const coachingTier = await getUserTierServer(userId);
   const coachingQuota = await canDoCoachingServer(userId);
   
   const winProbData = computeWinProbability(data.timelineEvents);

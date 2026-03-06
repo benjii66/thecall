@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileCode, Clock, Cpu, Activity, ExternalLink, ChevronDown, ChevronRight, Folder, RefreshCw, Trash2, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { FileCode, Clock, Cpu, Activity, ExternalLink, ChevronDown, ChevronRight, Folder, RefreshCw, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { ThemeSetter } from "@/components/MatchThemeController";
 import { BackgroundFX } from "@/components/BackgroundFX";

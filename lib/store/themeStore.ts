@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type Theme = 'default' | 'victory' | 'defeat' | 'profile';
+export type Theme = 'default' | 'victory' | 'defeat' | 'profile';
 
 interface ThemeState {
   theme: Theme;

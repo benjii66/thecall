@@ -5,11 +5,14 @@ import { WinProbPoint } from "@/lib/winProbability";
 
 describe("generateHeuristicReport", () => {
   const mockMatchData: MatchPageData = {
+    gameVersion: "14.4.1",
     timelineEvents: [],
     me: {
       champion: "Ahri",
       role: "Mid",
       kda: "5/2/10",
+      kills: 5,
+      assists: 10,
       kp: 65,
       gold: 12000,
       cs: 200,
@@ -24,6 +27,8 @@ describe("generateHeuristicReport", () => {
       champion: "Yasuo",
       role: "Mid",
       kda: "2/8/3",
+      kills: 2,
+      assists: 3,
       kp: 20,
       gold: 9000,
       cs: 150,
@@ -58,7 +63,7 @@ describe("generateHeuristicReport", () => {
       const badFarmData = { ...mockMatchData, me: { ...mockMatchData.me, cs: 80 } }; // 4 CS/min
       const report = generateHeuristicReport(badFarmData, mockWinProb, false);
       
-      expect(report.focus.title).toMatch(/Farming/);
+      expect(report.focus?.title).toMatch(/Farming/);
       expect(report.negatives).toEqual(
           expect.arrayContaining([
               expect.objectContaining({ title: "Farming faible" })
@@ -72,6 +77,6 @@ describe("generateHeuristicReport", () => {
       const lowVisionData = { ...mockMatchData, me: { ...mockMatchData.me, visionScore: 5 } };
       
       const report = generateHeuristicReport(lowVisionData, longGameProb, false);
-      expect(report.focus.title).toMatch(/Vision/);
+      expect(report.focus?.title).toMatch(/Vision/);
   });
 });

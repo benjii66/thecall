@@ -75,7 +75,6 @@ jest.mock("@/lib/logger", () => ({
 
 // Import mocks to control them
 import { generateCoachingReportStrict } from "@/lib/openai";
-import { ensureUser } from "@/lib/db/ensureUser";
 import { getUserTierServer, getUserTierLimitsServer, canDoCoachingServer, incrementCoachingUsage } from "@/lib/tier-server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -126,7 +125,7 @@ describe.skip("Coaching API Integration", () => {
         });
 
         const res = await POST(req);
-        const json = await res.json();
+        await res.json();
 
         expect(res.status).toBe(200);
         // expect(json.quality).toBe("premium"); 

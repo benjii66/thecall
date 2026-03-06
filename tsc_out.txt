@@ -1,0 +1,11 @@
+__tests__/api/coaching.integration.test.ts(78,1): error TS6133: 'ensureUser' is declared but its value is never read.
+__tests__/api/coaching.integration.test.ts(129,15): error TS6133: 'json' is declared but its value is never read.
+__tests__/coaching.test.ts(9,5): error TS2739: Type '{ champion: string; role: string; kda: string; kp: number; gold: number; cs: number; level: number; visionScore: number; damage: number; deaths: number; win: true; build: { items: never[]; runes: never[]; }; }' is missing the following properties from type 'PlayerSummary': kills, assists
+__tests__/coaching.test.ts(23,5): error TS2739: Type '{ champion: string; role: string; kda: string; kp: number; gold: number; cs: number; level: number; visionScore: number; damage: number; deaths: number; win: false; build: { items: never[]; runes: never[]; }; }' is missing the following properties from type 'PlayerSummary': kills, assists
+__tests__/coaching.test.ts(61,14): error TS18048: 'report.focus' is possibly 'undefined'.
+__tests__/coaching.test.ts(75,14): error TS18048: 'report.focus' is possibly 'undefined'.
+components/AdminReportsUI.tsx(4,113): error TS6133: 'CheckCircle2' is declared but its value is never read.
+components/AdminReportsUI.tsx(4,127): error TS6133: 'AlertCircle' is declared but its value is never read.
+components/MatchThemeController.tsx(4,30): error TS2459: Module '"@/lib/store/themeStore"' declares 'Theme' locally, but it is not exported.
+components/ProfilePageUI.tsx(30,10): error TS6133: 'meta' is declared but its value is never read.
+scripts/check-user.ts(1,10): error TS2305: Module '"@prisma/client"' has no exported member 'PrismaClient'.
