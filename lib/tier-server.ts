@@ -5,8 +5,9 @@ const DEV_TIER = process.env.DEV_TIER as SubscriptionTier | undefined;
 
 /**
  * Récupère le tier de l'utilisateur (Côté Serveur uniquement)
+ * Vérifie la DB pour confirmer le statut "pro"
  */
-export function getUserTierServer(userId?: string): SubscriptionTier {
+export async function getUserTierServer(userId?: string): Promise<SubscriptionTier> {
   // 1. Force Dev Tier (Server env overrides everything in dev)
   if (DEV_TIER === "free" || DEV_TIER === "pro") {
     return DEV_TIER;
@@ -17,17 +18,28 @@ export function getUserTierServer(userId?: string): SubscriptionTier {
     return "free";
   }
 
-  // TODO: Fetch from Subscription table later if needed
-  // For now we assume if not dev_tier, it's free unless we check DB subscription
-  // We can add the DB check here if implemented:
-  // const sub = await prisma.subscription.findUnique(...)
-  // return sub?.plan || "free";
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { tier: true, subscription: true }
+    });
+
+    // On vérifie le champ tier de l'utilisateur
+    // Il est synchronisé par Stripe Webhook ET modifiable par l'Admin.
+    if (user?.tier === "pro") {
+      return "pro";
+    }
+
+    console.log(`[TIER_SERVER] User ${userId} tier field is ${user?.tier}. Returning free.`);
+  } catch (e) {
+    console.error("Failed to fetch user tier from DB", e);
+  }
 
   return "free"; 
 }
 
-export function getUserTierLimitsServer(userId?: string): TierLimits {
-  const tier = getUserTierServer(userId);
+export async function getUserTierLimitsServer(userId?: string): Promise<TierLimits> {
+  const tier = await getUserTierServer(userId);
   return TIER_LIMITS[tier];
 }
 
@@ -39,7 +51,7 @@ export async function canDoCoachingServer(userId?: string): Promise<{
   remaining: number;
   limit: number;
 }> {
-  const limits = getUserTierLimitsServer(userId);
+  const limits = await getUserTierLimitsServer(userId);
   const limit = limits.coachingPerMonth;
 
   // Pro unlimited

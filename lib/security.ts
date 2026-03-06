@@ -142,10 +142,9 @@ export function hasDangerousChars(input: string): boolean {
  */
 export function validateOrigin(request: Request): boolean {
   const origin = request.headers.get("Origin");
-  if (!origin) return false;
-
-  // In development, we might not have a full URL
+  
   if (process.env.NODE_ENV === "development") return true;
+  if (!origin) return false;
 
   const allowedUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL;
   

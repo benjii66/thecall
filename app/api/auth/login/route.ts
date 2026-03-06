@@ -1,8 +1,8 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { riotFetch } from "@/lib/riot";
+import { createSession } from "@/lib/session";
 import { ensureUser } from "@/lib/db/ensureUser";
 import { validateGameName, validateTagLine, sanitizeForUrl, validateOrigin } from "@/lib/security";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
@@ -56,23 +56,15 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. DB Persistence (Upsert User)
-    await ensureUser({
+    const user = await ensureUser({
         riotPuuid: riotAccount.puuid,
         riotGameName: riotAccount.gameName,
         riotTagLine: riotAccount.tagLine,
         riotRegion: "europe", // Defaulting to europe as per current app logic
     });
 
-    // 5. Set Secure Cookie
-    // "user_puuid is ONLY for selecting the Riot profile to analyze (public data)."
-    const cookieStore = await cookies();
-    cookieStore.set("user_puuid", riotAccount.puuid, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60, // 30 days
-    });
+    // 5. Set Secure Signed Session
+    await createSession(user.id, riotAccount.puuid);
 
     return NextResponse.json({ success: true, gameName: riotAccount.gameName, tagLine: riotAccount.tagLine });
 

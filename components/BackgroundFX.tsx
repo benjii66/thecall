@@ -10,6 +10,7 @@ export function BackgroundFX() {
     default: "bg-[radial-gradient(1200px_600px_at_30%_0%,rgba(0,255,255,0.12),transparent_60%),radial-gradient(900px_500px_at_80%_20%,rgba(255,0,128,0.10),transparent_60%),radial-gradient(1100px_700px_at_50%_120%,rgba(120,70,255,0.10),transparent_60%)]",
     victory: "bg-[radial-gradient(1200px_600px_at_30%_0%,rgba(52,211,153,0.15),transparent_60%),radial-gradient(900px_500px_at_80%_20%,rgba(6,182,212,0.12),transparent_60%),radial-gradient(1100px_700px_at_50%_120%,rgba(16,185,129,0.10),transparent_60%)]",
     defeat: "bg-[radial-gradient(1200px_600px_at_30%_0%,rgba(248,113,113,0.15),transparent_60%),radial-gradient(900px_500px_at_80%_20%,rgba(251,146,60,0.12),transparent_60%),radial-gradient(1100px_700px_at_50%_120%,rgba(239,68,68,0.10),transparent_60%)]",
+    profile: "bg-[radial-gradient(1200px_600px_at_30%_0%,rgba(139,92,246,0.15),transparent_60%),radial-gradient(900px_500px_at_80%_20%,rgba(79,70,229,0.12),transparent_60%),radial-gradient(1100px_700px_at_50%_120%,rgba(217,119,6,0.08),transparent_60%)]",
   };
 
   return (

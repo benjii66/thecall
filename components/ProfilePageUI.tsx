@@ -62,16 +62,47 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
           return;
         }
 
-        const json = (await res.json()) as { profile?: PlayerProfile; meta?: ProfileMeta };
-        setProfile(json.profile ?? null);
-        setMeta(json.meta ?? null);
-        if (!json.profile) {
-          setError({
-            message: t("profile.unavailableDesc"),
-            hint: t("profile.puuidHint"),
-          });
+        const json = (await res.json()) as { 
+            profile?: PlayerProfile; 
+            meta?: ProfileMeta;
+            needsSync?: boolean;
+            source?: string;
+        };
+
+        if (json.needsSync) {
+            // Trigger Sync
+            const syncRes = await fetch("/api/sync/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ puuid })
+            });
+            
+            if (syncRes.ok) {
+                // Re-fetch profile
+                const finalRes = await fetch(`/api/profile?puuid=${puuid}&refresh=true`, { cache: "no-store" });
+                if (finalRes.ok) {
+                    const finalJson = await finalRes.json();
+                    setProfile(finalJson.profile ?? null);
+                    setMeta(finalJson.meta ?? null);
+                }
+            } else {
+                setError({
+                    message: t("profile.unavailableDesc"),
+                    hint: "La synchronisation a échoué. Réessaye plus tard."
+                });
+            }
+        } else {
+            setProfile(json.profile ?? null);
+            setMeta(json.meta ?? null);
+            if (!json.profile) {
+              setError({
+                message: t("profile.unavailableDesc"),
+                hint: t("profile.puuidHint"),
+              });
+            }
         }
-      } catch {
+      } catch (err) {
+        console.error("Profile load error:", err);
         setError({
           message: t("profile.unavailableDesc"),
           hint: t("profile.puuidHint"),
@@ -165,35 +196,7 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
                       </div>
                     </div>
                   
-                    {/* META BADGES */}
-                    {meta && (
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {meta.quality === "premium" && (
-                           <div className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]">
-                             <span className="relative flex h-2 w-2">
-                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                               <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
-                             </span>
-                             AI Analysis {meta.modelUsed ? `(${meta.modelUsed})` : ""}
-                           </div>
-                        )}
-                        {(meta.quality === "heuristic" || meta.quality === "heuristic_fallback") && (
-                           <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300">
-                             🧠 Standard
-                           </div>
-                        )}
-                        {meta.cached && (
-                           <div className="inline-flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-medium text-yellow-300">
-                             ⚡ Cached
-                           </div>
-                        )}
-                        {meta.createdAt && (
-                           <div className="text-xs text-white/30">
-                             {new Date(meta.createdAt).toLocaleDateString()}
-                           </div>
-                        )}
-                      </div>
-                    )}
+                    {/* META BADGES REMOVED */}
                   </div>
                 </div>
               </div>

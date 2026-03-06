@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     );
   }
   
-  console.log("[MATCHES API] ✅ RIOT_API_KEY présente", { 
+  logger.info("[MATCHES API] ✅ RIOT_API_KEY présente", { 
     keyLength: process.env.RIOT_API_KEY.length,
     keyPrefix: process.env.RIOT_API_KEY.substring(0, 10) + "..."
   });

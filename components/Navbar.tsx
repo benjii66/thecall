@@ -170,17 +170,31 @@ function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string }
     }, 0);
     
     // Initialiser tier et écouter les changements
-    const initializeTier = () => {
-      const tier = getClientTier();
-      setTier(tier);
+    const initializeTier = async () => {
+      // Valeur immédiate (localStorage en dev)
+      setTier(getClientTier());
+
+      // Sync avec le serveur pour la vérité absolue (DB)
+      try {
+        const res = await fetch("/api/tier");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tier) {
+            setTier(data.tier);
+            // Sync localStorage pour éviter le flash au prochain reload en dev
+            localStorage.setItem("user-tier", data.tier);
+          }
+        }
+      } catch (e) {
+        console.error("Tier sync failed", e);
+      }
     };
     
     initializeTier();
     
-    // Écouter les changements de tier (pour recharger quand on change)
+    // Écouter les changements de tier
     const handleStorageChange = () => {
-      const newTier = getClientTier();
-      setTier(newTier);
+      setTier(getClientTier());
     };
     
     window.addEventListener("storage", handleStorageChange);
@@ -241,7 +255,7 @@ function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string }
     }
   };
 
-  const isFree = tier === "free";
+  const isFree = !currentUser || tier === "free";
 
   // Calculer la position du menu
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
@@ -348,12 +362,12 @@ function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string }
           </div>
           <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-black/10">
             <User size={14} className="sm:w-4 sm:h-4" />
-            {!isFree && (
+            {!isFree && currentUser && (
               <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[10px] font-bold text-black ring-2 ring-[#05060b]">
                 P
               </span>
             )}
-            {isFree && (
+            {(isFree || !currentUser) && (
                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#05060b] bg-yellow-500" />
             )}
           </div>

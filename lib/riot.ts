@@ -10,12 +10,14 @@ if (!RIOT_API_KEY) {
 
 type Routing = "europe" | "americas" | "asia";
 
+import { getRiotApiKey } from "./settings";
+
 export async function riotFetch<T>(
   endpoint: string,
   routing: Routing = "europe",
   cacheOptions?: RequestInit["next"] & { cache?: RequestCache }
 ): Promise<T> {
-  const token = process.env.RIOT_API_KEY;
+  const token = await getRiotApiKey();
   if (!token) throw new Error("RIOT_API_KEY missing");
 
   // Validate routing

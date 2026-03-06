@@ -1,14 +1,14 @@
 
 import { NavbarWrapper } from "@/components/NavbarWrapper";
-import { BackgroundFX } from "@/components/BackgroundFX";
-import { SettingsPageUI } from "@/components/SettingsPageUI";
+import { NexusBackground } from "@/components/NexusBackground";
+import { PublicSettingsUI } from "@/components/PublicSettingsUI";
 
 export default function SettingsPage() {
   return (
-    <main className="min-h-screen bg-[#05060b] text-white">
+    <main className="min-h-screen text-white overflow-x-hidden">
       <NavbarWrapper />
-      <BackgroundFX />
-      <SettingsPageUI />
+      <NexusBackground />
+      <PublicSettingsUI />
     </main>
   );
 }

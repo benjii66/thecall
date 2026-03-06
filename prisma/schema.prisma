@@ -1,11 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../lib/generated/prisma"
 }
 
@@ -13,56 +7,52 @@ datasource db {
   provider = "postgresql"
 }
 
-// User & Auth
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  
-  // Custom Fields
-  riotPuuid        String?   @unique
-  riotGameName     String?
-  riotTagLine      String?
-  riotRegion       String?   // ex: EUW1
-  
-  // Cache / Sync
-  lastMatchIdSeen         String?
+  id                      String                  @id @default(cuid())
+  name                    String?
+  email                   String?                 @unique
+  emailVerified           DateTime?
+  image                   String?
+  riotPuuid               String?                 @unique
+  riotGameName            String?
+  riotTagLine             String?
+  riotRegion              String?
+  stripeCustomerId        String?                 @unique
+  tier                    String?                 @default("free")
+  status                  String                  @default("active")
+  themeDynamic            Boolean                 @default(true)
+  animationsEnabled       Boolean                 @default(true)
+  language                String                  @default("fr")
+  isPublic                Boolean                 @default(true)
+  pushNotifications       Boolean                 @default(true)
+  emailNewsletter         Boolean                 @default(false)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
   lastCheckedAt           DateTime?
-  profileAggregateVersion String? // ex: "fv1"
-  
-  stripeCustomerId String?   @unique
-  tier             String?   @default("free") // free/pro
-
-  // Relations
-  accounts      Account[]
-  sessions      Session[]
-  matches       Match[]
-  usage         Usage?
-  subscription  Subscription?
-  profileCoachingReports ProfileCoachingReport[]
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  lastMatchIdSeen         String?
+  profileAggregateVersion String?
+  accounts                Account[]
+  matches                 Match[]
+  profileCoachingReports  ProfileCoachingReport[]
+  sessions                Session[]
+  subscription            Subscription?
+  usage                   Usage?
 }
 
-// NextAuth Standard
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? @db.Text
-  session_state      String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -75,99 +65,81 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Core Domain: Matches
 model Match {
-  id            String   @id @default(cuid()) // Internal PK
-  matchId       String   // Riot Match ID (ex: EUW1_123456)
-  
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Metadata
-  gameCreation  DateTime
-  gameDuration  Int
-  queueId       Int
-  win           Boolean
-  championId    Int
-  role          String?
-
-  // Data Storage
-  matchJson     Json?
-  timelineJson  Json?
-
-  hasMatchJson    Boolean @default(false)
-  hasTimelineJson Boolean @default(false)
-
-  // Coaching Link
+  id              String           @id @default(cuid())
+  matchId         String
+  userId          String
+  gameCreation    DateTime
+  gameDuration    Int
+  queueId         Int
+  win             Boolean
+  championId      Int
+  role            String?
+  matchJson       Json?
+  timelineJson    Json?
+  createdAt       DateTime         @default(now())
+  hasMatchJson    Boolean          @default(false)
+  hasTimelineJson Boolean          @default(false)
   coachingReports CoachingReport[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime @default(now())
-  
   @@unique([userId, matchId])
   @@index([userId, gameCreation])
 }
 
-// Core Domain: Coaching
 model CoachingReport {
-  id        String   @id @default(cuid())
-  
-  matchDbId String
-  match     Match    @relation(fields: [matchDbId], references: [id], onDelete: Cascade)
-  
-  version   String   @default("v1")
-  quality   String   // "heuristic" | "premium"
-  
+  id         String   @id @default(cuid())
+  matchDbId  String
+  version    String   @default("v1")
+  quality    String
   reportJson Json
   modelUsed  String?
-
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  match      Match    @relation(fields: [matchDbId], references: [id], onDelete: Cascade)
 
   @@unique([matchDbId, version, quality])
 }
 
-// Usage & Quotas
 model Usage {
   id             String    @id @default(cuid())
   userId         String    @unique
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   coachingCount  Int       @default(0)
   monthlyCount   Int       @default(0)
   monthlyResetAt DateTime  @default(now())
   lastCoachingAt DateTime?
-
   updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Stripe Subscription
 model Subscription {
-  id                 String    @id @default(cuid())
-  userId             String    @unique
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  status             String    // active, past_due, canceled, etc
-  plan               String    // free, pro
-  priceId            String?
-  currentPeriodEnd   DateTime?
-  cancelAtPeriodEnd  Boolean   @default(false)
-
-  updatedAt          DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  status            String
+  plan              String
+  priceId           String?
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ProfileCoachingReport {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  matchesFingerprint String   // SHA1 of last 20 match IDs joined by "|"
-  version           String   @default("v1")
-  quality           String   // "premium" | "heuristic" | "heuristic_fallback"
-  
-  reportJson        Json     // Stores insights and playstyle
-  modelUsed         String?
-  
-  createdAt         DateTime @default(now())
+  id                 String   @id @default(cuid())
+  userId             String
+  matchesFingerprint String
+  version            String   @default("v1")
+  quality            String
+  reportJson         Json
+  modelUsed          String?
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, matchesFingerprint, version])
   @@index([userId, matchesFingerprint])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

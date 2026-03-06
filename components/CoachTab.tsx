@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { CoachingQuotaBadge } from "./CoachingQuotaBadge";
 import { PaywallSections } from "./PaywallSection";
 import { ConversionBanner } from "./ConversionBanner";
+import { PoroLoader } from "./PoroLoader";
 import type { CoachingReport } from "@/types/coaching";
 import { getUserTier, canDoCoaching } from "@/lib/tier";
 import { useLanguage } from "@/lib/language";
 
-import { CoachTabSkeleton } from "./CoachTabSkeleton";
+
 import { BuildAnalysisCard } from "@/components/BuildAnalysisCard";
 import type { MatchPageData } from "@/types/match";
 
@@ -34,7 +35,6 @@ export function CoachTab({
   const [report, setReport] = useState<CoachingReport | null>(initialReport);
   // Start loading immediately if we don't have a report, so Skeleton shows during hydration/mount
   const [loading, setLoading] = useState(!initialReport);
-  const [isCached, setIsCached] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [tier, setTier] = useState<"free" | "pro">(initialTier || "free");
@@ -62,7 +62,7 @@ export function CoachTab({
     if (initialReport) {
       setReport(initialReport);
       setLoading(false);
-      setIsCached(false);
+      setLoading(false);
     }
   }, [initialReport]);
 
@@ -74,14 +74,10 @@ export function CoachTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     setLoading(true);
     setError(null);
-    setIsCached(false);
 
     let isActive = true;
     const controller = new AbortController();
     loadingRef.current = true;
-    const startTime = Date.now();
-    const MIN_LOADING_TIME = 2500;
-
     fetch("/api/coaching", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -89,19 +85,23 @@ export function CoachTab({
       signal: controller.signal
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("Erreur de chargement service coaching");
+        if (!res.ok) {
+          // Gérer spécifiquement le quota épuisé (403)
+          if (res.status === 403) {
+            const data = await res.json().catch(() => ({}));
+            if (data.error?.includes("Quota")) {
+               console.log("[COACH_TAB] Quota exhausted (403)");
+               setQuota(prev => ({ ...prev, allowed: false, remaining: 0 }));
+               return; // On s'arrête là sans erreur rouge
+            }
+          }
+          throw new Error("Erreur de chargement service coaching");
+        }
+        
         const data = await res.json();
         
-        const elapsed = Date.now() - startTime;
-        if (elapsed < MIN_LOADING_TIME) {
-            await new Promise(r => setTimeout(r, MIN_LOADING_TIME - elapsed));
-        }
-
         if (isActive && data.report) {
           if (data.quota) setQuota(data.quota);
-          if (data.cached) {
-              setIsCached(true);
-          }
           setReport({ ...data.report, quality: data.quality });   
         }
       })
@@ -182,32 +182,13 @@ export function CoachTab({
         />
 
         {/* Conversion banners - uniquement pour free tier */}
-        {!isPro && showFirstBanner && (
+        {!isPro && showFirstBanner && hasQuota && (
           <ConversionBanner
             variant="first-coaching"
             onDismiss={() => setShowFirstBanner(false)}
           />
         )}
         
-        {/* Status badges */}
-        <div className="mb-4 flex justify-end gap-2">
-            {isCached && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-medium text-cyan-300">
-                    <span className="mr-0.5">⚡</span> Cached
-                </span>
-            )}
-            
-            {report && report.quality === "premium" ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">
-                    <span className="mr-0.5">🤖</span> AI Analysis
-                </span>
-            ) : (report && report.quality?.includes("heuristic")) ? (
-                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs font-medium text-white/50">
-                    <span className="mr-0.5">🧠</span> Standard
-                </span>
-            ) : null}
-        </div>
-
         {/* Message d'erreur */}
         {error && (
           <div className="mb-4 flex flex-col items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-center text-sm text-red-300">
@@ -299,8 +280,15 @@ export function CoachTab({
               </div>
             </div>
 
-            {/* Loading State (AI Generation) */}
-            {loading && !report && <CoachTabSkeleton />}
+            {/* AI Generation Loading State - Only for AI specific fields */}
+            {loading && !report && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <PoroLoader />
+                <p className="mt-4 text-sm text-white/50 animate-pulse">
+                  {t("coaching.aiLoading")}
+                </p>
+              </div>
+            )}
 
             {/* 2. Insights AI / Heuristiques (Turning Point, Focus, etc.) - Si report chargé */}
             {report && hasQuota && (report.turningPoint || report.focus || report.action) && (
@@ -491,6 +479,7 @@ export function CoachTab({
         )}
 
         {/* Paywall sections premium (toujours visibles en free pour montrer la valeur) */}
+        {/* On évite la redondance : si on a déjà affiché le banner "Quota épuisé" en haut, on montre pas "first-coaching" en bas, juste une section propre. */}
         {!isPro && (
           <PaywallSections />
         )}

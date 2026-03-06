@@ -106,7 +106,7 @@ void main() {
 }
 `;
 
-type Theme = 'default' | 'victory' | 'defeat';
+type Theme = 'default' | 'victory' | 'defeat' | 'profile';
 
 const THEMES: Record<Theme, { bg: [number, number, number], r1: [number, number, number], r2: [number, number, number] }> = {
   default: {
@@ -123,6 +123,11 @@ const THEMES: Record<Theme, { bg: [number, number, number], r1: [number, number,
     bg: [0.03, 0.01, 0.01], // Dark Reddish
     r1: [0.4, 0.0, 0.1], // Crimson
     r2: [1.0, 0.2, 0.2]  // Bright Red
+  },
+  profile: {
+    bg: [0.03, 0.01, 0.05], // Dark Purple
+    r1: [0.3, 0.0, 0.5], // Deep Purple
+    r2: [0.6, 0.2, 1.0]  // Violet
   }
 };
 

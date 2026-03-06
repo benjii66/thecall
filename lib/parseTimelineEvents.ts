@@ -116,18 +116,18 @@ function formatTowerLabel(raw: TowerKillEvent): string {
 
   const tier =
     raw.towerType === "OUTER_TURRET"
-      ? "Outer"
+      ? "extérieure"
       : raw.towerType === "INNER_TURRET"
-      ? "Inner"
+      ? "intérieure"
       : raw.towerType === "BASE_TURRET"
-      ? "Base"
+      ? "de base"
       : raw.towerType === "NEXUS_TURRET"
-      ? "Nexus"
-      : "Tower";
+      ? "du Nexus"
+      : "Tourelle";
 
-  if (!lane) return `Tower — ${tier}`;
+  if (!lane) return `Tourelle ${tier}`;
 
-  return `Tower ${tier} ${lane}`;
+  return `Tourelle ${tier} ${lane}`;
 }
 
 
@@ -202,10 +202,10 @@ export function extractTimelineEvents(
               team: "ally",
               involved: involved ?? false,
               label: killerChampion && victimChampion
-                ? `${killerChampion} killed ${victimChampion}`
+                ? `${killerChampion} a tué ${victimChampion}`
                 : victimChampion
-                ? `Kill on ${victimChampion}`
-                : "Kill",
+                ? `Élimination de ${victimChampion}`
+                : "Élimination",
               meta: {
                 victimChampion,
                 killerChampion,
@@ -228,10 +228,10 @@ export function extractTimelineEvents(
               team: "ally",
               involved: involved ?? false,
               label: victimChampion && killerChampion
-                ? `${victimChampion} killed by ${killerChampion}`
+                ? `${victimChampion} tué par ${killerChampion}`
                 : killerChampion
-                ? `Killed by ${killerChampion}`
-                : "Death",
+                ? `Tué par ${killerChampion}`
+                : "Mort",
               meta: {
                 victimChampion,
                 killerChampion,
@@ -264,7 +264,7 @@ export function extractTimelineEvents(
               kind: "grub",
               team: raw.killerTeamId === myTeam ? "ally" : "enemy",
               involved: false,
-              label: "Void Grub",
+              label: "Larve du Néant",
             },
           ];
         }
@@ -299,7 +299,7 @@ export function extractTimelineEvents(
               kind: "herald",
               team: raw.killerTeamId === myTeam ? "ally" : "enemy",
               involved: false,
-              label: "Herald",
+              label: "Héraut de la Faille",
             },
           ];
         }
@@ -315,7 +315,7 @@ export function extractTimelineEvents(
               kind: "baron",
               team: raw.killerTeamId === myTeam ? "ally" : "enemy",
               involved: false,
-              label: "Baron",
+              label: "Baron Nashor",
             },
           ];
         }
@@ -390,7 +390,7 @@ export function extractTimelineEvents(
           kind: "gold",
           team: diff >= 0 ? "ally" : "enemy",
           involved: false,
-          label: `${(diff / 1000).toFixed(1)}k gold diff`,
+          label: `${(diff / 1000).toFixed(1)}k d'avance`,
           meta: { goldDiff: diff },
         });
       }

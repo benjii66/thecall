@@ -1,5 +1,5 @@
 import { getRedisClient } from "./redis";
-import crypto from "crypto";
+import { createHash } from "node:crypto";
 import { logger } from "./logger";
 
 const AI_CACHE_TTL = 24 * 60 * 60; // 24 hours
@@ -24,7 +24,7 @@ export function hashFeatures(features: any): string {
     return value;
   });
 
-  return crypto.createHash("sha256").update(stableString).digest("hex");
+  return createHash("sha256").update(stableString).digest("hex");
 }
 
 export async function getCachedAiProfile(puuid: string, featuresHash: string): Promise<any | null> {

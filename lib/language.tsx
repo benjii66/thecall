@@ -272,6 +272,7 @@ const translations: Record<Language, Record<string, string>> = {
     "coaching.quotaExhausted": "Quota coaching épuisé",
     "coaching.quotaExhaustedDesc": "Upgrade Pro pour coaching illimité + profil complet",
     "coaching.impact": "Impact:",
+    "coaching.aiLoading": "L'IA analyse ta partie...",
     
     // Profile
     "profile.title": "The Call • Profil joueur Pro",
@@ -576,6 +577,7 @@ const translations: Record<Language, Record<string, string>> = {
     "coaching.quotaExhausted": "Coaching quota exhausted",
     "coaching.quotaExhaustedDesc": "Upgrade to Pro for unlimited coaching + full profile",
     "coaching.impact": "Impact:",
+    "coaching.aiLoading": "AI is analyzing your game...",
     
     // Profile
     "profile.title": "The Call • Pro Player Profile",

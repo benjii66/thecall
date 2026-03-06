@@ -13,7 +13,7 @@ export const prisma =
   globalForPrisma.prisma ||
   new PrismaClientConstructor({
     adapter,
-    log: ["query"],
+    // log: ["query"], // Disabled as per user request
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
 

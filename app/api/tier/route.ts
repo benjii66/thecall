@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getUserTierServer, getUserTierLimitsServer } from "@/lib/tier-server";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET(req: Request) {
   // Rate limiting
@@ -23,20 +24,18 @@ export async function GET(req: Request) {
     return response;
   }
   
-  // TODO: Récupérer userId depuis session/cookie
-  const userId = undefined;
+  // 1.5 Authenticate Session
+  const userId = await getSessionUserId();
 
   // En mode dev, vérifier si un tier est stocké dans les headers (simulation)
-  // Le client peut passer un header pour simuler un tier différent
   const devTier = req.headers.get("x-dev-tier") as "free" | "pro" | null;
   
   // Si on est en dev et qu'un tier est passé, l'utiliser temporairement
-  // Sinon, utiliser la logique normale
   const tier = devTier && (devTier === "free" || devTier === "pro") 
     ? devTier 
-    : getUserTierServer(userId);
+    : await getUserTierServer(userId || undefined);
   
-  const limits = getUserTierLimitsServer(userId);
+  const limits = await getUserTierLimitsServer(userId || undefined);
 
   return NextResponse.json({
     tier,

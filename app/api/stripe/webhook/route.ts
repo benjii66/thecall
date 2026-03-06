@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log(`[Webhook] Processing subscription event: ${event.type}`, subscription.id);
+        logger.info(`[Webhook] Processing subscription event: ${event.type}`, { subscriptionId: subscription.id });
 
         const customerId = typeof subscription.customer === 'string' 
             ? subscription.customer 
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
             
             const priceId = subscription.items?.data?.[0]?.price?.id || null;
 
-            console.log(`[Webhook] Updating user ${user.id} subscription. Status: ${status}, Tier: ${tier}, Price: ${priceId}`);
+            logger.info(`[Webhook] Updating user ${user.id} subscription. Status: ${status}, Tier: ${tier}, Price: ${priceId}`);
 
             try {
                 await prisma.subscription.upsert({
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
                     data: { tier: tier }
                 });
                 
-                console.log(`[Webhook] Success: Updated subscription for user ${user.id}`);
+                logger.info(`[Webhook] Success: Updated subscription for user ${user.id}`);
                 logger.info(`Updated Subscription for User ${user.id} to ${status} (${tier})`);
             } catch (dbError) {
                 console.error("[Webhook] Database error updating subscription:", dbError);
@@ -119,7 +119,7 @@ export async function POST(req: Request) {
       
       default:
         // Unhandled event type
-        console.log(`[Webhook] Unhandled event type: ${event.type}`);
+        logger.warn(`[Webhook] Unhandled event type: ${event.type}`);
     }
   } catch (error) {
     console.error(`[Webhook] Error processing event ${event.type}:`, error);

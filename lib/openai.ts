@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { logger } from "@/lib/logger";
+import { getOpenAIApiKey } from "./settings";
 
-const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 // 25s timeout as gpt-4o-mini might take longer for complex schemas
@@ -9,13 +9,14 @@ const TIMEOUT_MS = 25000;
 
 let openaiClient: OpenAI | null = null;
 
-function getClient(): OpenAI {
+async function getClient(): Promise<OpenAI> {
   if (!openaiClient) {
-    if (!apiKey) {
+    const key = await getOpenAIApiKey();
+    if (!key) {
       throw new Error("Missing OPENAI_API_KEY");
     }
     openaiClient = new OpenAI({
-      apiKey,
+      apiKey: key,
       timeout: TIMEOUT_MS,
     });
   }
@@ -188,7 +189,7 @@ export async function generateCoachingReportStrict(
   systemPrompt: string,
   userPrompt: string
 ): Promise<{ reportJson: unknown; modelUsed: string }> {
-  const client = getClient();
+  const client = await getClient();
   logger.info("[OpenAI] Starting generation", { model });
 
   try {
@@ -322,7 +323,7 @@ export async function generateProfileReportStrict(
   systemPrompt: string,
   userPrompt: string
 ): Promise<{ reportJson: any; modelUsed: string }> {
-  const client = getClient();
+  const client = await getClient();
   logger.info("[OpenAI] Starting profile generation", { model });
 
   try {

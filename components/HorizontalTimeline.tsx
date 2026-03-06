@@ -217,12 +217,12 @@ export function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
   const lastTick = maxMinute;
 
   // 4) Positionnement précis temporel avec gestion des collisions verticales uniquement
-  const CONTAINER_H = 208;
+  const CONTAINER_H = 240; // Augmenté pour éviter les débordements
   const BASE_Y = CONTAINER_H / 2;
   const DOT_R = 14;
-  const LANE_GAP = 45; // Plus d'espace entre les lanes
-  const TEAM_GAP = 25; // Plus d'espace entre baseline et dots
-  const VERTICAL_COLLISION_THRESHOLD = 35; // Distance verticale minimum entre deux bulles
+  const LANE_GAP = 40; // Légèrement réduit pour gagner de l'espace vertical
+  const TEAM_GAP = 20; 
+  const VERTICAL_COLLISION_THRESHOLD = 30; 
 
   const clusterPositions: Array<{
     cluster: Cluster;
@@ -294,7 +294,7 @@ export function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
   return (
     <section className="relative mt-10 rounded-xl border border-white/10 bg-black/20 py-5">
       {/* STAGE - même padding horizontal que les ticks pour alignement */}
-      <div className="relative h-52 w-full px-6">
+      <div className="relative h-60 w-full px-6">
         {/* Baseline centrée */}
         <div className="absolute left-0 right-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-white/8" />
 
@@ -312,7 +312,7 @@ export function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
               : "bg-red-500/20 text-red-300";
 
           // Constantes pour le calcul du stem
-          const CONTAINER_H = 208;
+          const CONTAINER_H = 240;
           const BASE_Y = CONTAINER_H / 2;
           const DOT_R = 14;
 

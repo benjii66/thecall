@@ -52,13 +52,13 @@ class Logger {
   }
 
   info(message: string, context?: LogContext): void {
-    if (this.isDevelopment || process.env.NODE_ENV === "test") {
+    if (process.env.VERBOSE_LOGS === "true") {
       console.log(this.formatMessage("info", message, context));
     }
   }
 
   debug(message: string, context?: LogContext): void {
-    if (this.isDevelopment || process.env.NODE_ENV === "test") {
+    if (process.env.VERBOSE_LOGS === "true") {
       console.debug(this.formatMessage("debug", message, context));
     }
   }

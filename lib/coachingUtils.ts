@@ -87,7 +87,7 @@ export function generateHeuristicReport(
 
   // Positives
   const positives = [];
-  if (csPerMin > 7.5) positives.push({ type: "positive", title: "CS Prodigy", description: `Excellent farm (${csPerMin.toFixed(1)} CS/min). Tu as optimisé tes revenus.` });
+  if (csPerMin > 7.5) positives.push({ type: "positive", title: "Pro du Farming", description: `Excellent farm (${csPerMin.toFixed(1)} CS/min). Tu as optimisé tes revenus.` });
   else if (csPerMin > 6.5) positives.push({ type: "positive", title: "Bon Farming", description: `${csPerMin.toFixed(1)} CS/min, solide.` });
   
   if (me.kp > 70) positives.push({ type: "positive", title: "Omniprésent", description: `KP de ${me.kp}%. Tu es le moteur des combats de ton équipe.` });
@@ -146,7 +146,7 @@ export function generateHeuristicReport(
         ? `${turningPointMinute}:00 — ${turningPointEvent.label}`
         : `${turningPointMinute}:00 — Changement de tempo`,
       timestamp: `${turningPointMinute}:${String(Math.floor((turningPointMinute % 1) * 60)).padStart(2, "0")}`,
-      impact: `${maxChange > 0 ? "+" : ""}${maxChange.toFixed(0)}% win prob`,
+      impact: `${maxChange > 0 ? "+" : ""}${maxChange.toFixed(0)}% proba de victoire`,
     },
     focus: {
       type: "focus",
