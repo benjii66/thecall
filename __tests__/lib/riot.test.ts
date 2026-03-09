@@ -1,23 +1,24 @@
-
 import { riotFetch } from "@/lib/riot";
+import * as settings from "@/lib/settings";
 
-// Mock fetch global
-const mockFetch = jest.fn() as jest.Mock;
+jest.mock("@/lib/settings", () => ({
+    getRiotApiKey: jest.fn(),
+}));
+
+const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 describe("riotFetch", () => {
-    const originalEnv = process.env;
-
     beforeEach(() => {
-        jest.resetModules();
-        process.env = { ...originalEnv, RIOT_API_KEY: "RGAPI-TEST" };
-        mockFetch.mockClear();
+        jest.clearAllMocks();
         jest.useFakeTimers();
+        (settings.getRiotApiKey as jest.Mock).mockResolvedValue("RGAPI-TEST");
+        jest.spyOn(Math, 'random').mockReturnValue(0);
     });
 
     afterAll(() => {
-        process.env = originalEnv;
         jest.useRealTimers();
+        jest.restoreAllMocks();
     });
 
     it("should successfuly return data on 200", async () => {
@@ -37,56 +38,52 @@ describe("riotFetch", () => {
     });
 
     it("should throw error if API key is missing", async () => {
-        delete process.env.RIOT_API_KEY;
+        (settings.getRiotApiKey as jest.Mock).mockResolvedValue(undefined);
         await expect(riotFetch("test")).rejects.toThrow("RIOT_API_KEY missing");
     });
 
     it("should retry on 429 (Rate Limit)", async () => {
-        // First call: 429
-        mockFetch.mockResolvedValueOnce({
-            ok: false,
-            status: 429,
-            headers: new Headers({ "Retry-After": "1" }), // 1 second
-            text: async () => "Rate limit",
-        });
-
-        // Second call: 200 OK
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({ success: true }),
-        });
+        mockFetch
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 429,
+                headers: new Headers({ "Retry-After": "1" }),
+                text: async () => "Rate limit",
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true }),
+            });
 
         const promise = riotFetch("test");
-        
-        // Fast-forward time to bypass the 1s wait + jitter
         await jest.advanceTimersByTimeAsync(2000);
-
         const result = await promise;
+        
         expect(result).toEqual({ success: true });
         expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it("should retry on 500 (Server Error)", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: false,
-            status: 500,
-            headers: new Headers(),
-            text: async () => "Server Error",
-        });
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({ success: true }),
-        });
+        mockFetch
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 500,
+                headers: new Headers(),
+                text: async () => "Server Error",
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true }),
+            });
 
         const promise = riotFetch("test");
         await jest.advanceTimersByTimeAsync(2000);
-
         await promise;
+        
         expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
-    it.skip("should fail after max retries", async () => {
-        // 3 failures
+    it("should fail after max retries", async () => {
         mockFetch.mockResolvedValue({
             ok: false,
             status: 500,
@@ -96,10 +93,12 @@ describe("riotFetch", () => {
 
         const promise = riotFetch("test");
         
-        // Advance time enough for 3 attempts (1s + 2s + 4s...)
-        await jest.advanceTimersByTimeAsync(10000);
+        // Need to advance timers for each retry separately to let promises resolve
+        await jest.advanceTimersByTimeAsync(2000); // 1st retry wait
+        await jest.advanceTimersByTimeAsync(3000); // 2nd retry wait
+        await jest.advanceTimersByTimeAsync(5000); // 3rd retry wait
 
-        await expect(promise).rejects.toThrow("Riot error 500");
+        await expect(promise).rejects.toThrow(/Riot error 500/);
         expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
@@ -111,7 +110,7 @@ describe("riotFetch", () => {
             text: async () => "Not Found",
         });
 
-        await expect(riotFetch("test")).rejects.toThrow("Ressource Riot introuvable");
+        await expect(riotFetch("test")).rejects.toThrow(/Ressource Riot introuvable/);
         expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 });

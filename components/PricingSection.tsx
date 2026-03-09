@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 export function PricingSection() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [tier, setTier] = useState<"free" | "pro">("free");
+  const [isAnnual, setIsAnnual] = useState(false);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const showSuccess = searchParams.get("success") === "true";
@@ -26,10 +27,14 @@ export function PricingSection() {
   const handleUpgrade = async () => {
     setIsProcessing(true);
     try {
+      const priceId = isAnnual 
+        ? PRICING.pro.stripePriceId.yearly 
+        : PRICING.pro.stripePriceId.monthlyLaunch;
+
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}), 
+        body: JSON.stringify({ priceId }), 
       });
 
       if (!res.ok) throw new Error("Erreur init checkout");
@@ -70,6 +75,24 @@ export function PricingSection() {
         </p>
       </div>
 
+      {/* Toggle */}
+      <div className="mb-12 flex justify-center">
+        <div className="inline-flex rounded-full border border-white/10 p-1 bg-white/5 backdrop-blur-sm shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+          <button
+            onClick={() => setIsAnnual(false)}
+            className={`rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${!isAnnual ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/25' : 'text-white/60 hover:text-white'}`}
+          >
+            Mensuel
+          </button>
+          <button
+            onClick={() => setIsAnnual(true)}
+            className={`rounded-full px-6 py-2.5 text-sm font-semibold transition-all flex items-center gap-2 ${isAnnual ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/25' : 'text-white/60 hover:text-white'}`}
+          >
+            Annuel <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${isAnnual ? 'bg-black/20 text-black' : 'bg-emerald-500/20 text-emerald-400'}`}>-30%</span>
+          </button>
+        </div>
+      </div>
+
       {/* Pricing Cards */}
       <div className="grid gap-8 md:grid-cols-2">
         {/* Free Tier */}
@@ -77,7 +100,7 @@ export function PricingSection() {
           <div className="mb-6">
             <h2 className="text-2xl font-semibold">Free</h2>
             <p className="mt-2 text-sm text-white/60">
-              Preuve de concept • Timeline + Win% + Coaching basique
+              Teste la puissance de The Call sans engagement
             </p>
           </div>
 
@@ -89,19 +112,17 @@ export function PricingSection() {
 
           <ul className="mb-8 space-y-4">
             <FeatureItem
-              text={`${TIER_LIMITS.free.coachingPerMonth} coachings par mois`}
+              text={`${TIER_LIMITS.free.coachingPerMonth} analyses The Call par mois`}
               included={true}
             />
             <FeatureItem
-              text="Coaching basique (heuristique)"
+              text="Identification du point de basculement"
               included={true}
             />
-            <FeatureItem text="Mini-profil (5-10 matchs)" included={true} />
-            <FeatureItem text="Historique limité" included={true} />
-            <FeatureItem text="Coaching IA premium" included={false} />
-            <FeatureItem text="Profil complet (50+ matchs)" included={false} />
-            <FeatureItem text="Export PDF" included={false} />
-            <FeatureItem text="Support prioritaire" included={false} />
+            <FeatureItem text="Historique limité (5 matchs)" included={true} />
+            <FeatureItem text="Analyses IA illimitées" included={false} />
+            <FeatureItem text="Temps de réponse prioritaire" included={false} />
+            <FeatureItem text="Support premium dédié" included={false} />
           </ul>
 
           {tier === "free" ? (
@@ -121,71 +142,98 @@ export function PricingSection() {
           )}
         </div>
 
-        {/* Pro Tier */}
-        <div className="relative rounded-3xl border-2 border-cyan-500/50 bg-gradient-to-br from-cyan-500/10 to-violet-500/10 p-8 shadow-[0_0_0_1px_rgba(0,255,255,0.1),0_40px_120px_rgba(0,255,255,0.15)] backdrop-blur-md">
+        {/* Pro Tier (FOUNDERS EDITION) */}
+        <div className="relative rounded-3xl border-2 border-cyan-500/80 bg-gradient-to-br from-cyan-500/20 via-black to-violet-500/20 p-8 shadow-[0_0_40px_rgba(34,211,238,0.2)] backdrop-blur-xl transition-transform hover:scale-[1.02]">
+          {/* Glowing Top Edge */}
+          <div className="absolute inset-x-0 -top-px h-[2px] w-full bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
+          
           {/* Badge */}
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-            <span className="rounded-full border border-cyan-500/50 bg-cyan-500/20 px-4 py-1 text-xs font-semibold text-cyan-300">
-              Recommandé
-            </span>
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center justify-center">
+            <div className="relative flex items-center gap-1 rounded-full border border-cyan-400 bg-cyan-950 px-4 py-1 text-xs font-bold text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.5)]">
+               <span className="relative flex h-2 w-2 mr-1">
+                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+               </span>
+              ÉDITION FOUNDERS
+            </div>
           </div>
 
           <div className="mb-6">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-cyan-300" />
-              <h2 className="text-2xl font-semibold">Pro</h2>
-              <span className="rounded-full border border-cyan-500/50 bg-cyan-500/20 px-2 py-0.5 text-xs font-semibold text-cyan-300">
-                Founders
-              </span>
+              <Sparkles className="h-6 w-6 text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+              <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-violet-300">Pro</h2>
             </div>
-            <p className="mt-2 text-sm text-white/60">
-              Coaching IA premium illimité • Patterns • Profil complet
+            <p className="mt-3 text-sm font-medium text-cyan-100/80">
+              L'outil ultime pour progresser rapidement et durablement
             </p>
           </div>
 
           <div className="mb-8">
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-semibold">
-                {PRICING.pro.monthlyLaunch}€
+              <span className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                {isAnnual ? PRICING.pro.yearly : PRICING.pro.monthlyLaunch}€
               </span>
-              <span className="text-white/60">/mois</span>
+              <span className="text-white/60 font-medium">/{isAnnual ? 'an' : 'mois'}</span>
             </div>
-            <p className="mt-2 text-sm text-white/60">
-              <span className="line-through text-white/40">{PRICING.pro.monthly}€</span>{" "}
-              Prix Founders (conservé tant que l&apos;abonnement reste actif) • ou {PRICING.pro.yearly}€/an (économise ~2 mois)
-            </p>
+            
+            <div className="mt-3 flex flex-col gap-1 h-12">
+              {!isAnnual ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-white/30 line-through decoration-red-500/50 decoration-2">{PRICING.pro.monthly}€/mois</span>
+                    <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                      -33% À VIE
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/50">
+                    Prix bloqué au renouvellement. Annulable en un clic.
+                  </p>
+                </>
+              ) : (
+                 <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-white/30 line-through decoration-red-500/50 decoration-2">71.88€/an</span>
+                    <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                      -45% À VIE
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-400/80 font-medium">
+                    Soit ~3.33€/mois. Facturé annuellement.
+                  </p>
+                </>
+              )}
+            </div>
           </div>
 
           <ul className="mb-8 space-y-4">
             <FeatureItem
-              text="Coachings illimités"
+              text="Analyses IA The Call illimitées"
               included={true}
               highlight={true}
             />
             <FeatureItem
-              text="Coaching IA premium (GPT-4o-mini)"
+              text="Conseils macro personnalisés"
               included={true}
               highlight={true}
             />
             <FeatureItem
-              text="Profil complet (50+ matchs)"
+              text="Historique des matchs sauvegardé"
               included={true}
               highlight={true}
             />
             <FeatureItem
-              text="Historique illimité"
+              text="Temps de réponse prioritaire"
               included={true}
               highlight={true}
             />
-            <FeatureItem text="Export PDF des rapports" included={true} />
-            <FeatureItem text="Support prioritaire" included={true} />
+            <FeatureItem text="Support premium dédié" included={true} />
           </ul>
 
           {tier === "pro" ? (
             <div className="space-y-3">
                 <button
                     disabled
-                    className="relative block w-full rounded-xl bg-white/10 px-6 py-3 text-center font-semibold text-white/40 border border-white/10 cursor-not-allowed"
+                    className="relative block w-full rounded-xl bg-violet-600/20 px-6 py-3 text-center font-bold text-violet-300 border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.15)] cursor-not-allowed"
                 >
                     <span className="flex items-center justify-center gap-2">
                         <Check className="h-4 w-4" />
@@ -194,29 +242,36 @@ export function PricingSection() {
                 </button>
                 <button
                     onClick={handlePortal}
-                    className="block w-full text-center text-xs text-cyan-300 hover:text-cyan-200 underline"
+                    className="block w-full text-center text-xs text-cyan-300 hover:text-cyan-200 hover:underline transition-colors"
                 >
                     Gérer mon abonnement
                 </button>
             </div>
           ) : (
-            <button
+             <button
                 onClick={handleUpgrade}
                 disabled={isProcessing || loading}
-                className="relative block w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-center font-semibold text-black transition hover:from-cyan-400 hover:to-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="relative block w-full overflow-hidden rounded-xl bg-white px-6 py-3 font-bold text-black transition-all hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50 group shadow-[0_0_20px_rgba(255,255,255,0.2)]"
             >
-                <span className="flex items-center justify-center gap-2">
+                <div className="absolute inset-0 bg-gradient-to-r from-violet-500/0 via-cyan-400/20 to-violet-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                <span className="relative z-10 flex items-center justify-center gap-2">
                 {isProcessing || loading ? (
                     <span>Chargement...</span>
                 ) : (
                     <>
                     <Zap className="h-4 w-4" />
-                    <span>Upgrade Pro</span>
+                    <span>Passer à The Call Pro</span>
                     </>
                 )}
                 </span>
             </button>
           )}
+
+          <p className="mt-3 text-center text-xs text-white/50">
+            Paiement sécurisé via Stripe
+          </p>
+        </div>
+      </div>
 
       {/* Success Modal / Overlay */}
       {showSuccess && (
@@ -247,35 +302,29 @@ export function PricingSection() {
         </div>
       )}
 
-          <p className="mt-3 text-center text-xs text-white/50">
-            Paiement sécurisé via Stripe
-          </p>
-        </div>
-      </div>
-
       {/* FAQ */}
       <div className="mt-20">
         <h2 className="mb-8 text-2xl font-semibold">Questions fréquentes</h2>
         <div className="space-y-6">
           <FAQItem
-            question="Qu'est-ce que le coaching basique vs premium ?"
-            answer="Le coaching basique utilise des heuristiques (règles prédéfinies) pour analyser tes matchs. Le coaching premium utilise l'IA (GPT-4o-mini) pour des insights plus profonds, personnalisés et contextuels."
+            question="Comment fonctionne l'IA de The Call ?"
+            answer="Notre IA analyse la timeline de ta partie (différence d'or, positionnement, objectifs) pour détecter le 'point de basculement' exact où la game a commencé à t'échapper. Elle te fournit ensuite 1 conseil de macro-jeu concret pour t'améliorer."
           />
           <FAQItem
             question="Puis-je changer de plan plus tard ?"
-            answer="Oui, tu peux upgrade ou downgrade à tout moment. Les changements prennent effet immédiatement."
+            answer="Oui, tu peux upgrade à tout moment, et annuler ton abonnement en un clic. En cas d'annulation, ton statut Pro reste garanti jusqu'à la date de fin de la facturation."
           />
           <FAQItem
             question="Que se passe-t-il si je dépasse mon quota free ?"
-            answer="Tu recevras une notification et un lien pour upgrade Pro. Les coachings précédents restent accessibles."
+            answer="Tu ne pourras plus lancer d'analyses complètes sur tes nouveaux matchs jusqu'au mois suivant. Tu auras néanmoins toujours accès depuis l'historique à tes anciens matchs."
           />
           <FAQItem
             question="Le prix Founders est définitif ?"
-            answer="Oui, le prix Founders (3.99€/mois) est conservé tant que ton abonnement reste actif. Le prix normal sera de 5.99€/mois pour les nouveaux utilisateurs."
+            answer="Félicitations pour ton early-access ! Oui, tant que tu gardes ton abonnement actif sans interruption, tu honoreras ce tarif à vie, même lorsque thecall.tech repassera au tarif national (5.99€)."
           />
           <FAQItem
-            question="Y a-t-il une garantie ?"
-            answer="Si le coaching ne t'apporte aucun insight exploitable sur tes 2 premières analyses IA, on te rembourse."
+            question="Y a-t-il un abonnement annuel ?"
+            answer="Oui, tu peux choisir l'abonnement annuel (39.99€) directement en haut de cette page grâce au sélecteur, te permettant d'économiser environ 45% sur le tarif standard mensuel lissé sur l'année."
           />
         </div>
       </div>

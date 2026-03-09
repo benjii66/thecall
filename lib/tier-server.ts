@@ -21,21 +21,35 @@ export async function getUserTierServer(userId?: string): Promise<SubscriptionTi
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { tier: true, subscription: true }
+      select: { tier: true }
     });
 
-    // On vérifie le champ tier de l'utilisateur
-    // Il est synchronisé par Stripe Webhook ET modifiable par l'Admin.
     if (user?.tier === "pro") {
       return "pro";
     }
-
-    console.log(`[TIER_SERVER] User ${userId} tier field is ${user?.tier}. Returning free.`);
   } catch (e) {
     console.error("Failed to fetch user tier from DB", e);
   }
 
   return "free"; 
+}
+
+/**
+ * Récupère le statut complet de l'abonnement Stripe
+ */
+export async function getUserSubscriptionServer(userId?: string) {
+  if (!userId) return null;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { subscription: true }
+    });
+    return user?.subscription || null;
+  } catch (e) {
+    console.error("Failed to fetch user subscription from DB", e);
+    return null;
+  }
 }
 
 export async function getUserTierLimitsServer(userId?: string): Promise<TierLimits> {

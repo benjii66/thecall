@@ -4,12 +4,13 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { Navbar } from "./Navbar";
 import { prisma } from "@/lib/prisma";
+import { SubscriptionWarningBanner } from "./SubscriptionWarningBanner";
 
 export async function NavbarWrapper() {
   const cookieStore = await cookies();
   const puuid = cookieStore.get("user_puuid")?.value;
   
-  let currentUser = { name: "Invité", tag: "" };
+  let currentUser = { name: "Guest", tag: "" };
   let hasMatches = false;
 
   if (puuid) {
@@ -38,6 +39,7 @@ export async function NavbarWrapper() {
 
   return (
     <Suspense fallback={<div className="h-16 w-full bg-[#05060b]" />}>
+      <SubscriptionWarningBanner />
       <Navbar currentUser={currentUser} hasMatches={hasMatches} />
     </Suspense>
   );

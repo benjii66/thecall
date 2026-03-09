@@ -59,11 +59,11 @@ export const PRICING = {
   pro: {
     monthly: 5.99, // 5.99€/mois
     monthlyLaunch: 3.99, // 3.99€/mois (promo early adopters)
-    yearly: 49.99, // 49.99€/an (économise ~2 mois)
+    yearly: 39.99, // 39.99€/an (~3.33€/mois)
     stripePriceId: {
-      monthly: process.env.STRIPE_PRICE_ID_MONTHLY || "",
-      monthlyLaunch: process.env.STRIPE_PRICE_ID_MONTHLY_LAUNCH || "",
-      yearly: process.env.STRIPE_PRICE_ID_YEARLY || "",
+      monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO || "",
+      monthlyLaunch: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_MONTHLY_LAUNCH || "",
+      yearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_YEARLY || "",
     },
   },
 } as const;

@@ -1,6 +1,11 @@
 
+"use client";
+
+import { useLanguage } from "@/lib/language";
 
 export function Footer() {
+  const { t } = useLanguage();
+  
   return (
     <footer className="w-full py-8 mt-20 border-t border-white/5 bg-[#05060b] text-neutral-500 text-xs">
       <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-4 text-center">
@@ -11,12 +16,12 @@ export function Footer() {
         </p>
 
         <div className="flex gap-6 mt-2">
-          <a href="/privacy" className="hover:text-neutral-300 transition-colors">Privacy Policy</a>
-          <a href="/legal" className="hover:text-neutral-300 transition-colors">Terms of Service</a>
+          <a href="/privacy" className="hover:text-neutral-300 transition-colors">{t("footer.privacy")}</a>
+          <a href="/legal" className="hover:text-neutral-300 transition-colors">{t("footer.legal")}</a>
         </div>
 
         <p className="mt-4">
-          &copy; {new Date().getFullYear()} The Call. Crafted with ❤️ by TheCall Team.
+          &copy; {new Date().getFullYear()} The Call. {t("footer.crafted")}
         </p>
       </div>
     </footer>

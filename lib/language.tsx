@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
 type Language = "fr" | "en";
 
@@ -30,11 +30,58 @@ const translations: Record<Language, Record<string, string>> = {
     
     // Settings
     "settings.title": "Paramètres",
-    "settings.subtitle": "Gère tes préférences et tes options",
+    "settings.subtitle": "Gère ton compte et tes préférences TheCall.",
     "settings.language": "Langue",
     "settings.languageDesc": "Choisis la langue de l'interface",
     "settings.saving": "Sauvegarde...",
+    "settings.saved": "Enregistré !",
+    "settings.save": "Sauvegarder",
+    "settings.logout": "Déconnexion",
+    "settings.saveError": "Erreur lors de la sauvegarde. Réessaye.",
     "settings.futureSettings": "D'autres paramètres seront disponibles prochainement",
+    "settings.tabs.account": "Compte",
+    "settings.tabs.subscription": "Abonnement",
+    "settings.tabs.preferences": "Préférences",
+    "settings.tabs.security": "Sécurité",
+    "settings.tabs.notifications": "Notifications",
+    "settings.personalInfo": "Informations Personnelles",
+    "settings.personalInfoDesc": "Ces informations sont synchronisées via Riot Games et ne peuvent pas être modifiées manuellement.",
+    "settings.name": "Prénom / Pseudo",
+    "settings.email": "Email",
+    "settings.riotLink": "Lien Riot Games",
+    "settings.riotConnected": "Compte Riot Connecté",
+    "settings.plan.title": "Ton Plan Actuel",
+    "settings.plan.free": "Plan Gratuit",
+    "settings.plan.pro": "TheCall Pro",
+    "settings.plan.active": "Membre Actif",
+    "settings.plan.upgrade": "Passer à Pro",
+    "settings.plan.freeDesc": "Limite de {count} analyses par mois. Passe à Pro pour ne plus rien rater.",
+    "settings.plan.proDesc": "Tu bénéficies de toutes les analyses premium illimitées.",
+    "settings.billing.title": "Détails de Facturation",
+    "settings.billing.status": "Statut",
+    "settings.billing.renewal": "Renouvellement",
+    "settings.billing.founder": "Membre Fondateur",
+    "settings.billing.founderThanks": "Merci d'avoir soutenu TheCall au lancement ! 💜",
+    "settings.billing.manage": "Gérer mon abonnement via Stripe",
+    "settings.billing.adminManaged": "Géré par un Administrateur",
+    "settings.billing.cancelNotice": "Sera annulé à cette date",
+    "settings.usage.title": "Utilisation",
+    "settings.usage.analyses": "Analyses ce mois",
+    "settings.look.title": "Interface & Look",
+    "settings.look.dynamicTheme": "Thème Dynamique",
+    "settings.look.dynamicThemeDesc": "L'interface adapte ses teintes (Victoire, Défaite ou Neutre) en fonction du résultat de tes matchs.",
+    "settings.look.animations": "Animations Avancées",
+    "settings.look.animationsDesc": "Active les transitions fluides, les effets de particules et les micro-interactions.",
+    "settings.privacy.title": "Confidentialité",
+    "settings.privacy.public": "Profil Public",
+    "settings.privacy.publicDesc": "Permet aux autres joueurs de voir tes statistiques et rapports.",
+    "settings.security.password": "Mot de Passe",
+    "settings.security.unavailable": "Changement de mot de passe (Indisponible pour le moment)",
+    "settings.notifications.channels": "Canaux",
+    "settings.notifications.push": "Notifications Push",
+    "settings.notifications.pushDesc": "Alerte quand un nouveau rapport est prêt.",
+    "settings.notifications.newsletter": "Newsletter & Conseils",
+    "settings.notifications.newsletterDesc": "Reçois les meilleures astuces hebdomadaires par email.",
     
     // Subscription
     "subscription.title": "Gestion de l'abonnement",
@@ -69,7 +116,7 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.focus": "Focus macro",
     "landing.postGame": "Post-game coaching",
     "landing.tagline": "The Call • Coaching League of Legends",
-    "landing.title": "Tu es stuck ? Comprends enfin où la game bascule.",
+    "landing.title": "Tu es stuck et tu ne comprends pas pourquoi ?",
     "landing.titleHighlight": "TheCall",
     "landing.titleEnd": "te montre où la game bascule.",
     "landing.subtitle": "Ton analyste macro haute précision.",
@@ -89,7 +136,7 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.feature1Desc": "Tu vois le moment précis où la game bascule — et la cause (prio, vision, reset, fight forcé). Plus de \"j'ai mal joué\" vague : tu sais exactement quoi corriger.",
     "landing.feature1Proof": "Moment clé : 15:23 (Herald Flight)",
     "landing.feature2Title": "La cause racine",
-    "landing.feature2Desc": "On t'explique pourquoi la game t'échappe. Gagner ta lane ne suffit pas : comprends le déséquilibre structurel (tempo, vision, rotations) qui t'empêche de concrétiser.",
+    "landing.feature2Desc": "On t'explique pourquoi la game t'échappe. Gagner ta lane ne suffit pas : comprends le déséquilibre structurel (tempo, vision, rotations) qui t'empêche de concétriser.",
     "landing.feature2Proof": "Cause : tempo lâché à 12 min",
     "landing.feature3Title": "Ton plan next game",
     "landing.feature3Desc": "Une consigne simple et actionnable pour ta prochaine partie. Pas une analyse de plus : une instruction à appliquer immédiatement.",
@@ -142,6 +189,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Common
     "common.back": "Retour",
     "common.loading": "Chargement...",
+    "common.guest": "Invité",
     "settings.french": "Français",
     "settings.english": "Anglais",
     "subscription.upgradeConfirmTitle": "Passer à Pro ? (Mode Dev)",
@@ -252,6 +300,9 @@ const translations: Record<Language, Record<string, string>> = {
     "privacy.rightsList4": "Retirer ton consentement à tout moment",
     "privacy.contactTitle": "Contact",
     "privacy.contactDesc": "Pour toute question concernant cette politique ou pour exercer tes droits, contacte-nous via les canaux de support disponibles.",
+    "footer.legal": "Mentions Légales",
+    "footer.privacy": "Confidentialité",
+    "footer.crafted": "Conçu avec ❤️ par l'équipe TheCall.",
     
     // Match Page - Error messages
     "match.puuidMissing": "PUUID manquant",
@@ -340,11 +391,58 @@ const translations: Record<Language, Record<string, string>> = {
     
     // Settings
     "settings.title": "Settings",
-    "settings.subtitle": "Manage your preferences and options",
+    "settings.subtitle": "Manage your account and TheCall preferences.",
     "settings.language": "Language",
     "settings.languageDesc": "Choose the interface language",
     "settings.saving": "Saving...",
+    "settings.saved": "Saved!",
+    "settings.save": "Save",
+    "settings.logout": "Log out",
+    "settings.saveError": "Error while saving. Try again.",
     "settings.futureSettings": "More settings will be available soon",
+    "settings.tabs.account": "Account",
+    "settings.tabs.subscription": "Subscription",
+    "settings.tabs.preferences": "Preferences",
+    "settings.tabs.security": "Security",
+    "settings.tabs.notifications": "Notifications",
+    "settings.personalInfo": "Personal Information",
+    "settings.personalInfoDesc": "This information is synced via Riot Games and cannot be modified manually.",
+    "settings.name": "Name / Username",
+    "settings.email": "Email",
+    "settings.riotLink": "Riot Games Link",
+    "settings.riotConnected": "Riot Account Connected",
+    "settings.plan.title": "Your Current Plan",
+    "settings.plan.free": "Free Plan",
+    "settings.plan.pro": "TheCall Pro",
+    "settings.plan.active": "Active Member",
+    "settings.plan.upgrade": "Upgrade to Pro",
+    "settings.plan.freeDesc": "Limit of {count} analyses per month. Upgrade to Pro to never miss out.",
+    "settings.plan.proDesc": "You benefit from all unlimited premium analyses.",
+    "settings.billing.title": "Billing Details",
+    "settings.billing.status": "Status",
+    "settings.billing.renewal": "Renewal",
+    "settings.billing.founder": "Founder Member",
+    "settings.billing.founderThanks": "Thanks for supporting TheCall at launch! 💜",
+    "settings.billing.manage": "Manage my subscription via Stripe",
+    "settings.billing.adminManaged": "Managed by an Administrator",
+    "settings.billing.cancelNotice": "Will be canceled on this date",
+    "settings.usage.title": "Usage",
+    "settings.usage.analyses": "Analyses this month",
+    "settings.look.title": "Interface & Look",
+    "settings.look.dynamicTheme": "Dynamic Theme",
+    "settings.look.dynamicThemeDesc": "The interface adapts its colors (Win, Loss or Neutral) based on your match results.",
+    "settings.look.animations": "Advanced Animations",
+    "settings.look.animationsDesc": "Enable smooth transitions, particle effects and micro-interactions.",
+    "settings.privacy.title": "Privacy",
+    "settings.privacy.public": "Public Profile",
+    "settings.privacy.publicDesc": "Allow other players to see your statistics and reports.",
+    "settings.security.password": "Password",
+    "settings.security.unavailable": "Password change (Unavailable at the moment)",
+    "settings.notifications.channels": "Channels",
+    "settings.notifications.push": "Push Notifications",
+    "settings.notifications.pushDesc": "Alert when a new report is ready.",
+    "settings.notifications.newsletter": "Newsletter & Tips",
+    "settings.notifications.newsletterDesc": "Receive the best weekly tips by email.",
     
     // Subscription
     "subscription.title": "Subscription management",
@@ -452,6 +550,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Common
     "common.back": "Back",
     "common.loading": "Loading...",
+    "common.guest": "Guest",
     "settings.french": "French",
     "settings.english": "English",
     "subscription.upgradeConfirmTitle": "Upgrade to Pro? (Dev Mode)",
@@ -562,6 +661,9 @@ const translations: Record<Language, Record<string, string>> = {
     "privacy.rightsList4": "Withdraw your consent at any time",
     "privacy.contactTitle": "Contact",
     "privacy.contactDesc": "For any questions about this policy or to exercise your rights, contact us through available support channels.",
+    "footer.legal": "Legal Notice",
+    "footer.privacy": "Privacy Policy",
+    "footer.crafted": "Crafted with ❤️ by TheCall Team.",
     
     // Coaching
     "coaching.title": "Coaching TheCall",
@@ -633,26 +735,43 @@ const translations: Record<Language, Record<string, string>> = {
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>("fr");
+  
+  // Debug log pour voir l'état à chaque render
+  console.log("[Language] Provider Render - Language:", language);
 
   useEffect(() => {
     // Utiliser setTimeout pour éviter setState synchrone dans useEffect
     setTimeout(() => {
-      const savedLanguage = localStorage.getItem("language") as Language | null;
-      if (savedLanguage && (savedLanguage === "fr" || savedLanguage === "en")) {
-        setLanguageState(savedLanguage);
+      const savedLanguage = localStorage.getItem("language");
+      const browserLang = typeof navigator !== "undefined" ? navigator.language.split("-")[0] : "fr";
+      
+      let initialLang: Language = "fr";
+      
+      if (savedLanguage === "en" || savedLanguage === "us") {
+        initialLang = "en";
+      } else if (savedLanguage === "fr") {
+        initialLang = "fr";
+      } else if (browserLang === "en") {
+        initialLang = "en";
       }
+      
+      console.log("[Language] Initializing with:", initialLang, "(from saved:", savedLanguage, "browser:", browserLang, ")");
+      setLanguageState(initialLang);
     }, 0);
   }, []);
 
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
+  const setLanguage = useCallback((lang: string) => {
+    const normalized = (lang === "us" || lang === "en") ? "en" : "fr";
+    console.log("[Language] setLanguage:", lang, "->", normalized);
+    setLanguageState(normalized as Language);
     if (typeof window !== "undefined") {
-      localStorage.setItem("language", lang);
+      localStorage.setItem("language", normalized);
     }
-  };
+  }, []);
 
-  const t = (key: string, params?: Record<string, string>): string => {
-    const translation = translations[language]?.[key] || translations["fr"]?.[key] || key;
+  const t = useCallback((key: string, params?: Record<string, string>): string => {
+    const activeLang = (language === "en" || language === "fr") ? language : "fr";
+    const translation = translations[activeLang]?.[key] || translations["fr"]?.[key] || key;
     if (params) {
       return Object.entries(params).reduce(
         (str, [param, value]) => str.replace(new RegExp(`\\{${param}\\}`, "g"), value),
@@ -660,11 +779,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       );
     }
     return translation;
-  };
+  }, [language]);
 
   // Toujours fournir le contexte, même si pas encore monté
+  const contextValue = useMemo(() => ({
+    language,
+    setLanguage,
+    t
+  }), [language, setLanguage, t]);
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={contextValue}>
       {children}
     </LanguageContext.Provider>
   );

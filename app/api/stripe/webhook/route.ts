@@ -66,7 +66,9 @@ export async function POST(req: Request) {
 
         if (user) {
             const status = subscription.status;
-            const isPro = status === "active" || status === "trialing";
+            // Toleration of past_due to allow users a grace period to fix their card.
+            // Stripe will automatically send a 'canceled' or 'unpaid' event if retries fail.
+            const isPro = status === "active" || status === "trialing" || status === "past_due";
             const tier = isPro ? "pro" : "free";
 
             // Stripe dates are in seconds, Date constructor expects ms

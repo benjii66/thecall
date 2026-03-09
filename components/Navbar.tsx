@@ -12,9 +12,9 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useLanguage } from "@/lib/language";
 import { getClientTier } from "@/lib/tierClient";
 
-const items = [
-  { id: "overview", label: "Overview", icon: Sparkles },
-  { id: "coach", label: "Coach", icon: Brain },
+const getItems = (t: any) => [
+  { id: "overview", label: t("navbar.overview"), icon: Sparkles },
+  { id: "coach", label: t("navbar.coach"), icon: Brain },
 ];
 
 interface NavbarProps {
@@ -25,11 +25,14 @@ interface NavbarProps {
 }
 
 export function Navbar({ currentUser, hasMatches }: NavbarProps & { hasMatches: boolean }) {
+  const { t } = useLanguage();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showGlow, setShowGlow] = useState(false);
+  
+  const items = getItems(t);
   
   // Afficher les tabs uniquement si un match est sélectionné
   const matchId = searchParams.get("matchId");
@@ -94,7 +97,7 @@ export function Navbar({ currentUser, hasMatches }: NavbarProps & { hasMatches: 
                   onClick={handleBackToMatches}
                   disabled={isPending}
                   className="p-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition"
-                  title="Retour aux matchs"
+                  title={t("navbar.backToMatches")}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                 >
@@ -141,7 +144,7 @@ export function Navbar({ currentUser, hasMatches }: NavbarProps & { hasMatches: 
                 whileTap={{ scale: 0.98 }}
               >
                 <BarChart3 size={14} className="text-cyan-400" />
-                <span>Profil</span>
+                <span>{t("navbar.profile")}</span>
               </motion.button>
             )}
 
@@ -160,6 +163,7 @@ export function Navbar({ currentUser, hasMatches }: NavbarProps & { hasMatches: 
 
 function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string } }) {
   const { t } = useLanguage();
+  const displayName = currentUser?.name === "Guest" || currentUser?.name === "Invité" ? t("common.guest") : currentUser?.name;
   const [isOpen, setIsOpen] = useState(false);
   const [tier, setTier] = useState<"free" | "pro">("free");
   const [mounted, setMounted] = useState(false);
@@ -294,7 +298,7 @@ function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string }
           {/* User info */}
           <div className="px-3 py-2 mb-2 border-b border-white/10">
                   <div className="text-sm font-semibold text-white">
-                    {currentUser?.name || "InvitÃ©"} 
+                    {displayName} 
                     <span className="text-white/50 ml-1">#{currentUser?.tag || "0000"}</span>
                   </div>
                   <div className="text-xs text-white/50 mt-0.5">
@@ -362,7 +366,7 @@ function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string }
           whileTap={{ scale: 0.95 }}
         >
           <div className="hidden sm:block text-right text-xs text-white/60">
-            {currentUser?.name || "InvitÃ©"}<br />#{currentUser?.tag || "0000"}
+            {displayName}<br />#{currentUser?.tag || "0000"}
           </div>
           <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-black/10">
             <User size={14} className="sm:w-4 sm:h-4" />
@@ -387,6 +391,7 @@ function UserMenu({ currentUser }: { currentUser?: { name: string; tag: string }
 }
 
 function PricingButton() {
+  const { t } = useLanguage();
   const [tier, setTier] = useState<"free" | "pro">("free");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -423,7 +428,7 @@ function PricingButton() {
       whileTap={{ scale: 0.95 }}
     >
       <Sparkles size={14} className="sm:w-4 sm:h-4" />
-      <span className="hidden sm:inline">Pro</span>
+      <span className="hidden sm:inline">{t("navbar.pro")}</span>
     </motion.button>
   );
 }

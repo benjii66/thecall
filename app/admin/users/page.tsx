@@ -21,6 +21,11 @@ export default async function AdminUsersPage() {
     emailVerified: user.emailVerified?.toISOString() || null,
     lastCheckedAt: user.lastCheckedAt?.toISOString() || null,
     isFounder: user.subscription?.priceId === process.env.STRIPE_PRICE_ID_MONTHLY_LAUNCH,
+    subscription: user.subscription ? {
+      ...user.subscription,
+      currentPeriodEnd: user.subscription.currentPeriodEnd?.toISOString() || null,
+      updatedAt: user.subscription.updatedAt.toISOString(),
+    } : null,
   }));
 
   return <AdminUsersUI initialUsers={serializedUsers as any} />;

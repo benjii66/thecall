@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Shield, Bell, Palette, Globe, LogOut, Loader2, Save, AlertCircle, CreditCard, Zap, Info } from "lucide-react";
+import { User, Shield, Bell, Palette, Globe, LogOut, Loader2, Save, AlertCircle, CreditCard, Zap, Info, ChevronDown, Check } from "lucide-react";
 import { ThemeSetter } from "@/components/MatchThemeController";
 import { TIER_LIMITS } from "@/types/pricing";
+import { useLanguage } from "@/lib/language";
 
 export function PublicSettingsUI() {
   const [activeTab, setActiveTab] = useState("compte");
@@ -11,16 +12,19 @@ export function PublicSettingsUI() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
+  const [langOpen, setLangOpen] = useState(false);
+  const { setLanguage, t } = useLanguage();
 
   useEffect(() => {
     fetch("/api/user/settings")
       .then(res => res.json())
       .then(data => {
         setUser(data);
+        if (data.language) setLanguage(data.language);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [setLanguage]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -71,11 +75,11 @@ export function PublicSettingsUI() {
   };
 
   const tabs = [
-    { id: "compte", label: "Compte", icon: User },
-    { id: "abonnement", label: "Abonnement", icon: CreditCard },
-    { id: "preferences", label: "Préférences", icon: Palette },
-    { id: "securite", label: "Sécurité", icon: Shield },
-    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "compte", label: t("settings.tabs.account"), icon: User },
+    { id: "abonnement", label: t("settings.tabs.subscription"), icon: CreditCard },
+    { id: "preferences", label: t("settings.tabs.preferences"), icon: Palette },
+    { id: "securite", label: t("settings.tabs.security"), icon: Shield },
+    { id: "notifications", label: t("settings.tabs.notifications"), icon: Bell },
   ];
 
   if (loading) {
@@ -93,7 +97,7 @@ export function PublicSettingsUI() {
        <div className="flex flex-col gap-8 md:flex-row md:items-start">
           {/* Sidebar Nav */}
           <div className="w-full md:w-64 space-y-2">
-             <h1 className="px-4 text-2xl font-bold text-white mb-6">Paramètres</h1>
+             <h1 className="px-4 text-2xl font-bold text-white mb-6">{t("settings.title")}</h1>
              {tabs.map((tab) => (
                 <button
                    key={tab.id}
@@ -114,37 +118,37 @@ export function PublicSettingsUI() {
                 className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-400/60 hover:bg-red-500/10 hover:text-red-400 transiton-all mt-8"
              >
                 <LogOut className="h-4 w-4" />
-                Déconnexion
+                {t("settings.logout")}
              </button>
           </div>
 
           {/* Content Area */}
           <div className="flex-1 space-y-6">
              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-white/40">Gère ton compte et tes préférences TheCall.</p>
+                <p className="text-xs text-white/40">{t("settings.subtitle")}</p>
                 <button 
                     onClick={handleSave}
                     disabled={saving}
                     className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-2 text-sm font-bold text-white hover:bg-violet-500 transition-all disabled:opacity-50"
                 >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    {saveStatus === "success" ? "Enregistré !" : "Sauvegarder"}
+                    {saveStatus === "success" ? t("settings.saved") : t("settings.save")}
                 </button>
              </div>
 
              {saveStatus === "error" && (
                 <div className="flex items-center gap-3 rounded-xl bg-red-500/10 p-4 text-sm text-red-400 border border-red-500/20 animate-in fade-in zoom-in duration-300">
                     <AlertCircle className="h-4 w-4" />
-                    Erreur lors de la sauvegarde. Réessaye.
+                    {t("settings.saveError")}
                 </div>
              )}
 
              {activeTab === "compte" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                   <Section title="Informations Personnelles">
+                   <Section title={t("settings.personalInfo")}>
                       <div className="grid gap-6 md:grid-cols-2">
                          <div className="space-y-2 opacity-60">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">Prénom / Pseudo</label>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">{t("settings.name")}</label>
                             <input 
                                type="text" 
                                value={user?.name || ""} 
@@ -153,7 +157,7 @@ export function PublicSettingsUI() {
                             />
                          </div>
                          <div className="space-y-2 opacity-60">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">Email</label>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">{t("settings.email")}</label>
                             <input 
                                type="email" 
                                value={user?.email || ""} 
@@ -164,18 +168,18 @@ export function PublicSettingsUI() {
                       </div>
                       <div className="mt-4 flex items-center gap-2 text-[10px] text-white/20 italic">
                         <Info className="h-3 w-3" />
-                        <span>Ces informations sont synchronisées via Riot Games et ne peuvent pas être modifiées manuellement.</span>
+                         <span>{t("settings.personalInfoDesc")}</span>
                       </div>
                    </Section>
 
-                   <Section title="Lien Riot Games">
+                   <Section title={t("settings.riotLink")}>
                       <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
                          <div className="flex items-center gap-4">
                             <div className="h-10 w-10 rounded-full bg-violet-600/20 flex items-center justify-center text-violet-400">
                                <Globe className="h-5 w-5" />
                             </div>
                             <div>
-                               <p className="text-sm font-bold text-white">Compte Riot Connecté</p>
+                               <p className="text-sm font-bold text-white">{t("settings.riotConnected")}</p>
                                <p className="text-xs text-white/40">{user?.riotGameName}#{user?.riotTagLine}</p>
                             </div>
                          </div>
@@ -187,18 +191,18 @@ export function PublicSettingsUI() {
 
               {activeTab === "abonnement" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                   <Section title="Ton Plan Actuel">
+                   <Section title={t("settings.plan.title")}>
                       <div className="flex flex-col gap-6 md:flex-row md:items-center justify-between p-6 rounded-2xl bg-gradient-to-br from-violet-600/20 to-transparent border border-violet-500/20">
                          <div className="space-y-1">
                             <div className="flex items-center gap-2">
                                {user?.tier === 'pro' && <Zap className="h-5 w-5 text-violet-400 fill-violet-400/20" />}
-                               <h4 className="text-xl font-black text-white italic uppercase">{user?.tier === 'pro' ? 'TheCall Pro' : 'Plan Gratuit'}</h4>
-                               {user?.tier === 'pro' && <div className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-tighter">Membre Actif</div>}
+                               <h4 className="text-xl font-black text-white italic uppercase">{user?.tier === 'pro' ? t("settings.plan.pro") : t("settings.plan.free")}</h4>
+                                {user?.tier === 'pro' && <div className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-tighter">{t("settings.plan.active")}</div>}
                             </div>
                             <p className="text-sm text-white/40">
                                {user?.tier === 'pro' 
-                                 ? 'Tu bénéficies de toutes les analyses premium illimitées.' 
-                                 : `Limite de ${TIER_LIMITS['free'].coachingPerMonth} analyses par mois. Passe à Pro pour ne plus rien rater.`}
+                                 ? t("settings.plan.proDesc") 
+                                 : t("settings.plan.freeDesc", { count: TIER_LIMITS['free'].coachingPerMonth.toString() })}
                             </p>
                          </div>
                          {user?.tier !== 'pro' && (
@@ -206,35 +210,40 @@ export function PublicSettingsUI() {
                                onClick={handleStripeCheckout}
                                className="rounded-xl bg-violet-600 px-6 py-3 text-xs font-black text-white uppercase tracking-widest hover:bg-violet-500 transition-all shadow-lg shadow-violet-600/30"
                             >
-                               Passer à Pro
+                               {t("settings.plan.upgrade")}
                             </button>
                          )}
                       </div>
                    </Section>
 
                    {(user?.subscription || user?.tier === 'pro') && (
-                     <Section title="Détails de Facturation">
+                     <Section title={t("settings.billing.title")}>
                         <div className="grid gap-4 sm:grid-cols-2">
                            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
-                              <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Statut</p>
+                               <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{t("settings.billing.status")}</p>
                               <div className="flex flex-col gap-1">
                                 <p className="text-sm font-bold text-white uppercase">
                                   {user?.subscription 
-                                     ? (user.isFounder ? 'Membre Fondateur' : user.subscription.status) 
+                                     ? (user.isFounder ? t("settings.billing.founder") : user.subscription.status) 
                                      : 'Forcé (Sans Stripe)'}
                                 </p>
                                 {user?.isFounder && (
-                                   <p className="text-[10px] text-amber-500/80 italic normal-case">Merci d'avoir soutenu TheCall au lancement ! 💜</p>
+                                   <p className="text-[10px] text-amber-500/80 italic normal-case">{t("settings.billing.founderThanks")}</p>
                                 )}
                               </div>
                            </div>
-                           <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
-                              <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Renouvellement</p>
-                              <p className="text-sm font-bold text-white">
-                                 {user?.subscription?.currentPeriodEnd 
-                                   ? new Date(user.subscription.currentPeriodEnd).toLocaleDateString() 
-                                   : 'Géré par un Administrateur'}
-                              </p>
+                            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                               <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{t("settings.billing.renewal")}</p>
+                              <div className="flex flex-col gap-1">
+                                <p className="text-sm font-bold text-white">
+                                   {user?.subscription?.currentPeriodEnd 
+                                     ? new Date(user.subscription.currentPeriodEnd).toLocaleDateString() 
+                                     : t("settings.billing.adminManaged")}
+                                </p>
+                                {user?.subscription?.cancelAtPeriodEnd && (
+                                   <p className="text-[10px] text-red-400/80 font-bold uppercase">{t("settings.billing.cancelNotice")}</p>
+                                )}
+                              </div>
                            </div>
                         </div>
                         {user?.subscription?.status && user.subscription.status !== 'canceled' && (
@@ -244,17 +253,17 @@ export function PublicSettingsUI() {
                              className="mt-6 text-xs font-bold text-white/40 hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50"
                           >
                              <CreditCard className="h-3 w-3" />
-                             Gérer mon abonnement via Stripe
+                              {t("settings.billing.manage")}
                           </button>
                         )}
                      </Section>
                    )}
 
-                   <Section title="Utilisation">
+                   <Section title={t("settings.usage.title")}>
                       <div className="space-y-4">
                          <div className="space-y-2">
                             <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                               <span className="text-white/40">Analyses ce mois</span>
+                               <span className="text-white/40">{t("settings.usage.analyses")}</span>
                                <span className="text-white">
                                  {user?.usage?.monthlyCount || 0} / {user?.tier === 'pro' ? '∞' : TIER_LIMITS['free'].coachingPerMonth}
                                </span>
@@ -277,76 +286,108 @@ export function PublicSettingsUI() {
 
               {activeTab === "preferences" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                   <Section title="Interface & Look">
+                   <Section title={t("settings.look.title")}>
                       <div className="space-y-4">
                          <ToggleOption 
-                            title="Thème Dynamique" 
-                            description="L'interface adapte ses teintes (Victoire, Défaite ou Neutre) en fonction du résultat de tes matchs."
+                            title={t("settings.look.dynamicTheme")} 
+                            description={t("settings.look.dynamicThemeDesc")}
                             checked={user?.themeDynamic}
                             onChange={(val) => setUser({ ...user, themeDynamic: val })}
                          />
                          <ToggleOption 
-                            title="Animations Avancées" 
-                            description="Active les transitions fluides, les effets de particules et les micro-interactions pour une expérience plus immersive et premium."
+                            title={t("settings.look.animations")} 
+                            description={t("settings.look.animationsDesc")}
                             checked={user?.animationsEnabled}
                             onChange={(val) => setUser({ ...user, animationsEnabled: val })}
                          />
                       </div>
                    </Section>
 
-                   <Section title="Langue">
-                      <select 
-                        value={user?.language}
-                        onChange={(e) => setUser({ ...user, language: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-violet-500/50 outline-none transition-all appearance-none cursor-pointer"
-                      >
-                         <option value="fr">Français (France)</option>
-                         <option value="en">English (UK)</option>
-                         <option value="us">English (US)</option>
-                      </select>
-                   </Section>
-                </div>
-             )}
+                   <Section title={t("settings.language")}>
+                      <div className="relative">
+                         <p className="text-xs text-white/40 mb-3">{t("settings.languageDesc")}</p>
+                         <button 
+                            onClick={() => setLangOpen(!langOpen)}
+                            className="flex w-full items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white hover:bg-white/10 transition-all outline-none"
+                         >
+                            <span>
+                               {user?.language === 'fr' ? 'Français (France)' : 
+                                (user?.language === 'en' || user?.language === 'us') ? 'English' : t("common.select")}
+                            </span>
+                            <ChevronDown className={`h-4 w-4 text-white/40 transition-transform duration-300 ${langOpen ? 'rotate-180' : ''}`} />
+                         </button>
 
-             {activeTab === "securite" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                   <Section title="Mot de Passe">
-                      <button className="w-full bg-white/5 text-white/40 rounded-xl py-3 text-sm font-bold border border-white/5 hover:bg-white/10 transition-all cursor-not-allowed">
-                         Changement de mot de passe (Indisponible pour le moment)
-                      </button>
-                   </Section>
-                   
-                   <Section title="Confidentialité">
-                      <ToggleOption 
-                         title="Profil Public" 
-                         description="Permet aux autres joueurs de voir tes statistiques et rapports."
-                         checked={user?.isPublic}
-                         onChange={(val) => setUser({ ...user, isPublic: val })}
-                      />
-                   </Section>
-                </div>
-             )}
-
-             {activeTab === "notifications" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                   <Section title="Canaux">
-                      <div className="space-y-4">
-                         <ToggleOption 
-                            title="Notifications Push" 
-                            description="Alerte quand un nouveau rapport est prêt."
-                            checked={user?.pushNotifications}
-                            onChange={(val) => setUser({ ...user, pushNotifications: val })}
-                         />
-                         <ToggleOption 
-                            title="Newsletter & Conseils" 
-                            description="Reçois les meilleures astuces hebdomadaires par email."
-                            checked={user?.emailNewsletter}
-                            onChange={(val) => setUser({ ...user, emailNewsletter: val })}
-                         />
+                         {langOpen && (
+                            <>
+                               <div 
+                                  className="fixed inset-0 z-40" 
+                                  onClick={() => setLangOpen(false)} 
+                               />
+                               <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#120f1a] border border-white/10 rounded-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+                                  {[
+                                     { value: 'fr', label: 'Français (France)' },
+                                     { value: 'en', label: 'English' }
+                                  ].map((opt) => (
+                                     <button
+                                        key={opt.value}
+                                        onClick={() => {
+                                           setUser({ ...user, language: opt.value });
+                                           setLanguage(opt.value as any);
+                                           setLangOpen(false);
+                                        }}
+                                        className="flex w-full items-center justify-between px-4 py-3 text-sm text-white/80 hover:bg-violet-600 hover:text-white transition-all text-left"
+                                     >
+                                        {opt.label}
+                                        {user?.language === opt.value && <Check className="h-3 w-3 text-white" />}
+                                     </button>
+                                  ))}
+                               </div>
+                            </>
+                         )}
                       </div>
                    </Section>
                 </div>
-             )}
+              )}
+
+              {activeTab === "securite" && (
+                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <Section title={t("settings.security.password")}>
+                       <button className="w-full bg-white/5 text-white/40 rounded-xl py-3 text-sm font-bold border border-white/5 hover:bg-white/10 transition-all cursor-not-allowed">
+                          {t("settings.security.unavailable")}
+                       </button>
+                    </Section>
+                    
+                    <Section title={t("settings.privacy.title")}>
+                       <ToggleOption 
+                          title={t("settings.privacy.public")} 
+                          description={t("settings.privacy.publicDesc")}
+                          checked={user?.isPublic}
+                          onChange={(val) => setUser({ ...user, isPublic: val })}
+                       />
+                    </Section>
+                 </div>
+              )}
+
+              {activeTab === "notifications" && (
+                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <Section title={t("settings.notifications.channels")}>
+                       <div className="space-y-4">
+                          <ToggleOption 
+                             title={t("settings.notifications.push")} 
+                             description={t("settings.notifications.pushDesc")}
+                             checked={user?.pushNotifications}
+                             onChange={(val) => setUser({ ...user, pushNotifications: val })}
+                          />
+                          <ToggleOption 
+                             title={t("settings.notifications.newsletter")} 
+                             description={t("settings.notifications.newsletterDesc")}
+                             checked={user?.emailNewsletter}
+                             onChange={(val) => setUser({ ...user, emailNewsletter: val })}
+                          />
+                       </div>
+                    </Section>
+                 </div>
+              )}
           </div>
        </div>
     </div>

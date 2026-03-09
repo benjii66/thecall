@@ -54,7 +54,7 @@ describe("generateHeuristicReport", () => {
     const report = generateHeuristicReport(mockMatchData, mockWinProb, false);
     expect(report.positives).toEqual(
         expect.arrayContaining([
-            expect.objectContaining({ title: "Bon Farming" })
+            expect.objectContaining({ title: "Pro du Farming" })
         ])
     );
   });
@@ -66,7 +66,7 @@ describe("generateHeuristicReport", () => {
       expect(report.focus?.title).toMatch(/Farming/);
       expect(report.negatives).toEqual(
           expect.arrayContaining([
-              expect.objectContaining({ title: "Farming faible" })
+              expect.objectContaining({ title: "Revenu critique" })
           ])
       );
   });

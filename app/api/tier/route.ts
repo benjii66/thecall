@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 // API route pour récupérer le tier utilisateur (Force Refresh)
 import { NextResponse } from "next/server";
-import { getUserTierServer, getUserTierLimitsServer } from "@/lib/tier-server";
+import { getUserTierServer, getUserTierLimitsServer, getUserSubscriptionServer } from "@/lib/tier-server";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { getSessionUserId } from "@/lib/session";
 
@@ -36,9 +36,11 @@ export async function GET(req: Request) {
     : await getUserTierServer(userId || undefined);
   
   const limits = await getUserTierLimitsServer(userId || undefined);
+  const subscription = await getUserSubscriptionServer(userId || undefined);
 
   return NextResponse.json({
     tier,
     limits,
+    subscription
   });
 }

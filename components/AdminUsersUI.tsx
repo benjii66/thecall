@@ -19,7 +19,7 @@ interface User {
   subscription?: {
     status: string;
     stripeCustomerId: string;
-    currentPeriodEnd: Date;
+    currentPeriodEnd: string | null;
   } | null;
   isFounder?: boolean;
 }
@@ -133,6 +133,7 @@ export default function AdminUsersUI({ initialUsers }: { initialUsers: User[] })
                 <tr>
                    <th className="px-6 py-4">Utilisateur</th>
                    <th className="px-6 py-4">Accès / Tier</th>
+                   <th className="px-6 py-4">Expiration</th>
                    <th className="px-6 py-4">Inscrit le</th>
                    <th className="px-6 py-4">PUUID</th>
                    <th className="px-6 py-4">Actions</th>
@@ -229,6 +230,26 @@ export default function AdminUsersUI({ initialUsers }: { initialUsers: User[] })
                           )}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {user.subscription?.currentPeriodEnd ? (
+                        <div className="flex flex-col">
+                          <span className="text-white font-medium">
+                            {new Date(user.subscription.currentPeriodEnd).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                          </span>
+                          {new Date(user.subscription.currentPeriodEnd).getTime() < Date.now() ? (
+                            <span className="text-[10px] text-red-400 uppercase font-bold">Expiré</span>
+                          ) : (
+                            <span className="text-[10px] text-white/30 uppercase">Actif</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-white/20">N/A</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-white/60 text-xs">
                       {new Date(user.createdAt).toLocaleDateString()}
