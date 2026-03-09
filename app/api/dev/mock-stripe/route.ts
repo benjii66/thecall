@@ -24,10 +24,10 @@ export async function POST(req: Request) {
             create: {
               id: "sub_dev_mock",
               status: status || "past_due",
-              currentPeriodStart: new Date(),
+              plan: "pro",
+              priceId: "price_mock",
               currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
               cancelAtPeriodEnd: false,
-              planId: "price_mock"
             },
             update: {
               status: status || "past_due"
