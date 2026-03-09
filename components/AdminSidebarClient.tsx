@@ -14,7 +14,7 @@ export default function AdminSidebarClient({ username }: { username: string }) {
   };
 
   return (
-    <aside className="fixed left-0 top-0 hidden h-full w-64 border-r border-white/10 bg-black/50 backdrop-blur-xl lg:block">
+    <aside className="fixed left-0 top-0 z-50 hidden h-full w-64 border-r border-white/10 bg-black/50 backdrop-blur-xl lg:block">
       <div className="flex h-full flex-col">
         <div className="flex h-20 items-center gap-3 px-6">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 shadow-[0_0_15px_rgba(139,92,246,0.4)]">
