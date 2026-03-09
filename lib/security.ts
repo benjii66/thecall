@@ -146,26 +146,27 @@ export function validateOrigin(request: Request): boolean {
   if (process.env.NODE_ENV === "development") return true;
   if (!origin) return false;
 
-  const allowedUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL;
-  
-  if (!allowedUrl) return true; // Fail-open in dev/preview if no URL is set, or add logic
-  
-  // Clean up URL to get base origin (protocol + host)
-  try {
-    const allowedOrigin = new URL(allowedUrl.startsWith("http") ? allowedUrl : `https://${allowedUrl}`).origin;
-    
-    // Exact match
-    if (origin === allowedOrigin) return true;
-
-    // Vercel Preview/Branch support: allow any *.vercel.app for ease of testing
-    // In strict production with custom domain, NEXT_PUBLIC_SITE_URL should be set.
-    if (origin.endsWith(".vercel.app")) {
-        return true;
+  // 1. Check against environment variables
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL;
+  if (envUrl) {
+    try {
+      const allowedOrigin = new URL(envUrl.startsWith("http") ? envUrl : `https://${envUrl}`).origin;
+      if (origin === allowedOrigin) return true;
+    } catch {
+      // Ignore
     }
-
-    return false;
-  } catch {
-    // Fallback simple check if URL parsing fails
-    return origin === allowedUrl || origin.endsWith(".vercel.app");
   }
+
+  // 2. Same-Origin Check (Compare with current Host)
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  if (host) {
+    const currentOrigin = `https://${host}`;
+    if (origin === currentOrigin) return true;
+  }
+
+  // 3. Vercel Preview/Branch support
+  if (origin.endsWith(".vercel.app")) return true;
+
+  console.warn(`[Security] Origin mismatch: ${origin}. Expected match with: ${envUrl} or ${host}`);
+  return false;
 }
