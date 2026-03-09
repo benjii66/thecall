@@ -1,12 +1,14 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Brain, User, BarChart3, ArrowLeft, LogOut, CreditCard, ChevronDown, Settings, Hexagon } from "lucide-react";
+import { Sparkles, Brain, User, BarChart3, ArrowLeft, LogOut, CreditCard, ChevronDown, Settings } from "lucide-react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { useTransition, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import Image from "next/image";
 import { GlowOverlay } from "./GlowOverlay";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useLanguage } from "@/lib/language";
 import { getClientTier } from "@/lib/tierClient";
 
@@ -77,8 +79,8 @@ export function Navbar({ currentUser, hasMatches }: NavbarProps & { hasMatches: 
           
           {/* Brand */}
           <Link href="/" className="flex items-center gap-4 pr-6 group border-r border-white/10 mr-2">
-            <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-violet-500/20 to-cyan-400/20 border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.15)] transition-transform group-hover:scale-105">
-                <Hexagon size={20} className="text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+            <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.15)] transition-transform group-hover:scale-105 bg-black/50">
+                <Image src="/logo.png" alt="The Call Logo" width={36} height={36} className="object-cover" />
             </div>
             <div className="flex flex-col">
               <span className="text-base font-bold tracking-tight text-white group-hover:text-cyan-200 transition-colors">TheCall</span>
@@ -127,6 +129,8 @@ export function Navbar({ currentUser, hasMatches }: NavbarProps & { hasMatches: 
 
           {/* Right Actions */}
           <div className="flex items-center gap-2 pl-2">
+            <LanguageSwitcher />
+            
             {/* Profile Button - ONLY VISIBLE IF HAS MATCHES */}
             {hasMatches && (
               <motion.button
