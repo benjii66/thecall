@@ -57,7 +57,7 @@ export function LandingPageUI() {
         </div>
 
         {/* HERO */}
-        <GlassCard className="p-8 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] lg:flex lg:items-center lg:justify-between lg:gap-10">
+        <GlassCard className="p-8 lg:pt-12 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.7)] lg:flex lg:items-start lg:justify-between lg:gap-10">
              {/* Ambient Glow */}
              <div className="pointer-events-none absolute -top-24 -left-20 h-96 w-96 rounded-full bg-cyan-500/20 blur-[100px] opacity-40 mix-blend-screen" />
              
@@ -122,7 +122,7 @@ export function LandingPageUI() {
           </div>
 
           {/* Hero preview card */}
-          <div className="mt-8 hidden flex-1 justify-end lg:flex">
+          <div className="hidden flex-1 justify-end lg:flex lg:-mt-40 lg:translate-y-[-35%]">
             <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-4 shadow-[0_0_40px_rgba(0,0,0,0.8)]">
               <div className="mb-2 flex items-center justify-between text-xs text-white/60">
                 <span className="font-semibold text-white/80">
