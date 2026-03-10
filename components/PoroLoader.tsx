@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
+import { useLanguage } from "@/lib/language";
+
 interface PoroLoaderProps {
   message?: string;
   progress?: number;
@@ -10,27 +12,50 @@ interface PoroLoaderProps {
 }
 
 const DEFAULT_MESSAGES = [
-  "Caresses aux Poros...",
-  "Calcul des statistiques...",
-  "Analyse du gameplay...",
-  "Inspection du Nexus...",
-  "Chargement des éclats de runes...",
+  "loading.messages.poro",
+  "loading.messages.stats",
+  "loading.messages.gameplay",
+  "loading.messages.nexus",
+  "loading.messages.runes",
+];
+
+const MACRO_TIPS = [
+  "tips.herald",
+  "tips.wards",
+  "tips.recall",
+  "tips.objective",
+  "tips.spacing",
+  "tips.level2",
+  "tips.vision",
+  "tips.tempo",
 ];
 
 export function PoroLoader({ message, progress, className }: PoroLoaderProps) {
+  const { t } = useLanguage();
   const [messageIndex, setMessageIndex] = useState(0);
+  const [tipIndex, setTipIndex] = useState(0);
+  const [showTip, setShowTip] = useState(false);
 
   useEffect(() => {
-    if (message) return; // Don't rotate if a fixed message is provided
+    // Randomize initial indices
+    setMessageIndex(Math.floor(Math.random() * DEFAULT_MESSAGES.length));
+    setTipIndex(Math.floor(Math.random() * MACRO_TIPS.length));
+    
+    if (message) return;
 
     const interval = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % DEFAULT_MESSAGES.length);
-    }, 3000);
+      setShowTip(prev => !prev);
+      if (showTip) {
+        setMessageIndex((prev) => (prev + 1) % DEFAULT_MESSAGES.length);
+      } else {
+        setTipIndex((prev) => (prev + 1) % MACRO_TIPS.length);
+      }
+    }, 4000);
 
     return () => clearInterval(interval);
-  }, [message]);
+  }, [message, showTip]);
 
-  const displayMessage = message || DEFAULT_MESSAGES[messageIndex];
+  const displayMessage = message || (showTip ? t(MACRO_TIPS[tipIndex]) : t(DEFAULT_MESSAGES[messageIndex]));
 
   return (
     <div className={`flex flex-col items-center justify-center p-8 text-center ${className}`}>

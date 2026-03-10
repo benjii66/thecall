@@ -69,6 +69,34 @@ export async function getSessionUserId(): Promise<string | null> {
 }
 
 /**
+ * Robust authentication: 
+ * 1. Try secure session
+ * 2. Fallback to PUUID cookie + DB lookup (Soft login)
+ */
+export async function getAuthUserSafe(): Promise<string | null> {
+  const sessionUserId = await getSessionUserId();
+  if (sessionUserId) return sessionUserId;
+
+  const cookieStore = await cookies();
+  const puuid = cookieStore.get("user_puuid")?.value;
+  
+  if (puuid) {
+    try {
+        const { prisma } = await import("@/lib/prisma");
+        const user = await prisma.user.findUnique({
+            where: { riotPuuid: puuid },
+            select: { id: true }
+        });
+        return user?.id || null;
+    } catch (e) {
+        console.error("[Session] Fallback lookup failed", e);
+    }
+  }
+
+  return null;
+}
+
+/**
  * Supprime la session
  */
 export async function deleteSession() {

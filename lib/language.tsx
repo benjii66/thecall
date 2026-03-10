@@ -195,6 +195,23 @@ const translations: Record<Language, Record<string, string>> = {
     "subscription.upgradeConfirmTitle": "Passer à Pro ? (Mode Dev)",
     "subscription.upgradeConfirmDesc": "En mode développement, tu peux tester le passage en Pro. La page sera rechargée pour appliquer les changements.",
     
+    // Loading
+    "loading.messages.poro": "Caresses aux Poros...",
+    "loading.messages.stats": "Calcul des statistiques...",
+    "loading.messages.gameplay": "Analyse du gameplay...",
+    "loading.messages.nexus": "Inspection du Nexus...",
+    "loading.messages.runes": "Chargement des éclats de runes...",
+    
+    // Tips
+    "tips.herald": "Conseil : Frappe l'œil dans le dos du Héraut pour lui infliger d'énormes dégâts brut.",
+    "tips.wards": "Conseil : Garde ta balise gratuite pour détecter une invasion dès la première minute.",
+    "tips.recall": "Conseil : Ne reste pas avec 1500 golds en poche. Reset pour transformer ton avantage en objets.",
+    "tips.objective": "Conseil : Un kill sans objectif (tour, drake) n'est qu'une statistique, pas une victoire.",
+    "tips.spacing": "Conseil : Le spacing est la clé. Garde la distance maximale pour punir sans être puni.",
+    "tips.level2": "Conseil : Le premier camp (jungle) ou la 7ème mort (lane) donne le niveau 2. Anticipe !",
+    "tips.vision": "Conseil : La Vision Score n'est pas que pour les supports. Pose des wards profondes.",
+    "tips.tempo": "Conseil : Le tempo est une ressource. Si tu attends trop, l'opportunité disparaît.",
+    
     // Match
     "match.notFound": "Match introuvable",
     "match.notFoundDesc": "Ce match n'existe pas dans ta liste.",
@@ -556,6 +573,23 @@ const translations: Record<Language, Record<string, string>> = {
     "subscription.upgradeConfirmTitle": "Upgrade to Pro? (Dev Mode)",
     "subscription.upgradeConfirmDesc": "In development mode, you can test upgrading to Pro. The page will reload to apply changes.",
     
+    // Loading
+    "loading.messages.poro": "Petting the Poros...",
+    "loading.messages.stats": "Calculating statistics...",
+    "loading.messages.gameplay": "Analyzing gameplay...",
+    "loading.messages.nexus": "Inspecting the Nexus...",
+    "loading.messages.runes": "Loading rune shards...",
+
+    // Tips
+    "tips.herald": "Tip: Hit the eye on the Herald's back to deal massive true damage.",
+    "tips.wards": "Tip: Save your free ward to detect an early invade in the first minute.",
+    "tips.recall": "Tip: Don't sit on 1500 gold. Recall to turn your advantage into items.",
+    "tips.objective": "Tip: A kill without an objective (tower, drake) is just a stat, not a win.",
+    "tips.spacing": "Tip: Spacing is key. Keep max distance to punish without being punished.",
+    "tips.level2": "Tip: The 7th minion (solo lane) gives level 2. Be ready to engage first!",
+    "tips.vision": "Tip: Vision Score isn't just for supports. Place deep wards in the enemy jungle.",
+    "tips.tempo": "Tip: Tempo is a resource. If you wait too long, the opportunity vanishes.",
+
     // Match
     "match.notFound": "Match not found",
     "match.notFoundDesc": "This match does not exist in your list.",

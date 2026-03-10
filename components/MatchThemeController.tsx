@@ -2,19 +2,19 @@
 
 import { useEffect } from "react";
 import { useThemeStore, type Theme } from "@/lib/store/themeStore";
+import { getChampionTheme } from "@/lib/champion-themes";
 
-export function MatchThemeController({ win }: { win?: boolean }) {
+export function MatchThemeController({ win, champion }: { win?: boolean, champion?: string }) {
   const { setTheme } = useThemeStore();
 
   useEffect(() => {
-    if (win === undefined) {
-      setTheme('default');
-    } else {
-      setTheme(win ? 'victory' : 'defeat');
-    }
+    const themeType: Theme = win === undefined ? 'default' : (win ? 'victory' : 'defeat');
+    const champTheme = champion ? getChampionTheme(champion) : null;
+    
+    setTheme(themeType, champTheme?.nexus);
 
     return () => setTheme('default');
-  }, [win, setTheme]);
+  }, [win, champion, setTheme]);
 
   return null;
 }

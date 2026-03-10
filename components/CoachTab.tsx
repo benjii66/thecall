@@ -12,6 +12,7 @@ import { useLanguage } from "@/lib/language";
 
 import { BuildAnalysisCard } from "@/components/BuildAnalysisCard";
 import type { MatchPageData } from "@/types/match";
+import { getChampionTheme, type ChampionTheme } from "@/lib/champion-themes";
 
 interface CoachTabProps {
   matchId: string;
@@ -160,6 +161,8 @@ export function CoachTab({
   const isPro = tier === "pro";
   const hasQuota = quota.allowed || isPro; // Pro = toujours autorisé
 
+  const theme = getChampionTheme(matchData.me.champion);
+
   return (
     <div>
       <section className="mt-10">
@@ -255,6 +258,7 @@ export function CoachTab({
                     : auditPositive
                   } 
                   limit={isPro ? undefined : 3}
+                  theme={theme}
                 />
                 {!isPro && (report?.positives?.length || auditPositive.length) > 3 && (
                   <p className="mt-2 text-xs text-white/50 italic text-center">
@@ -271,6 +275,7 @@ export function CoachTab({
                     : auditNegative
                   }
                   limit={isPro ? undefined : 3}
+                  theme={theme}
                 />
                 {!isPro && (report?.negatives?.length || auditNegative.length) > 3 && (
                   <p className="mt-2 text-xs text-white/50 italic text-center">
@@ -295,8 +300,8 @@ export function CoachTab({
               <div className="grid gap-4 md:grid-cols-3">
                 {report.turningPoint && (
                   <div>
-                    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
+                    <div className={`rounded-2xl border ${theme.border} ${theme.bg} ${theme.glow} p-5 transition-all duration-500`}>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300" style={{ color: theme.color }}>
                         {t("coaching.turningPoint")}
                       </div>
                       <p className="text-sm text-white/90">
@@ -317,8 +322,8 @@ export function CoachTab({
                 )}
                 {report.focus && (
                   <div>
-                    <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-purple-300">
+                    <div className={`rounded-2xl border ${theme.border} ${theme.bg} ${theme.glow} p-5 transition-all duration-500`}>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: theme.color }}>
                         {t("coaching.focus")}
                       </div>
                       <p className="text-sm text-white/90">
@@ -329,8 +334,8 @@ export function CoachTab({
                 )}
                 {report.action && (
                   <div>
-                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">
+                    <div className={`rounded-2xl border ${theme.border} ${theme.bg} ${theme.glow} p-5 transition-all duration-500`}>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: theme.color }}>
                         {t("coaching.action")}
                       </div>
                       <p className="text-sm text-white/90">
@@ -505,11 +510,13 @@ function AuditCard({
   tone,
   items,
   limit,
+  theme,
 }: {
   title: string;
   tone: "good" | "bad";
   items: string[];
   limit?: number;
+  theme: ChampionTheme;
 }) {
   const toneCls =
     tone === "good"
@@ -521,12 +528,12 @@ function AuditCard({
   const displayItems = limit ? items.slice(0, limit) : items;
 
   return (
-    <div className={`rounded-3xl border p-5 backdrop-blur ${toneCls}`}>
+    <div className={`rounded-3xl border p-5 backdrop-blur ${toneCls} ${theme.glow} transition-all duration-500`}>
       <h4 className={`text-sm font-semibold ${titleCls}`}>{title}</h4>
       <ul className="mt-3 space-y-2 text-sm text-white/80">
         {displayItems.map((t) => (
           <li key={t} className="flex gap-2">
-            <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-white/50" />
+            <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-white/50" style={{ backgroundColor: theme.color }} />
             <span>{t}</span>
           </li>
         ))}

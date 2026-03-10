@@ -21,10 +21,24 @@ export async function getUserTierServer(userId?: string): Promise<SubscriptionTi
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { tier: true }
+      select: { 
+        tier: true,
+        subscription: {
+          select: {
+            status: true,
+            plan: true
+          }
+        }
+      }
     });
 
-    if (user?.tier === "pro") {
+    // Check both standard field and active subscription
+    const hasActiveSub = 
+      user?.subscription?.status === "active" || 
+      user?.subscription?.status === "trialing" ||
+      user?.subscription?.status === "past_due";
+
+    if (user?.tier === "pro" || (hasActiveSub && user?.subscription?.plan === "pro")) {
       return "pro";
     }
   } catch (e) {

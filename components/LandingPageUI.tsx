@@ -61,7 +61,7 @@ export function LandingPageUI() {
              {/* Ambient Glow */}
              <div className="pointer-events-none absolute -top-24 -left-20 h-96 w-96 rounded-full bg-cyan-500/20 blur-[100px] opacity-40 mix-blend-screen" />
              
-          <div className="relative flex-1">
+          <div className="relative flex-1 z-10">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/50">
               {t("landing.tagline")}
             </p>
@@ -122,7 +122,7 @@ export function LandingPageUI() {
           </div>
 
           {/* Hero preview card */}
-          <div className="hidden flex-1 justify-end lg:flex lg:-mt-40 lg:translate-y-[-35%]">
+          <div className="hidden flex-1 justify-end lg:flex lg:-mt-40 lg:translate-y-[-35%] pointer-events-none">
             <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-4 shadow-[0_0_40px_rgba(0,0,0,0.8)]">
               <div className="mb-2 flex items-center justify-between text-xs text-white/60">
                 <span className="font-semibold text-white/80">

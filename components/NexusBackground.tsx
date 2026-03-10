@@ -131,11 +131,15 @@ const THEMES: Record<Theme, { bg: [number, number, number], r1: [number, number,
   }
 };
 
-function BackgroundShader({ theme }: { theme: Theme }) {
+function BackgroundShader({ theme, customColors }: { 
+  theme: Theme; 
+  customColors?: { bg: [number, number, number], r1: [number, number, number], r2: [number, number, number] } 
+}) {
   const mesh = useRef<THREE.Mesh>(null!);
-  const { viewport, size } = useThree();
+  const { size, viewport } = useThree();
 
-  const colors = THEMES[theme];
+  const themeColors = THEMES[theme];
+  const colors = customColors || themeColors;
 
   const uniforms = useMemo(
     () => ({
@@ -145,10 +149,9 @@ function BackgroundShader({ theme }: { theme: Theme }) {
       uColorRibbon1: { value: new THREE.Vector3(...colors.r1) },
       uColorRibbon2: { value: new THREE.Vector3(...colors.r2) },
     }),
-    [] // Intentionally empty dependency array to initialize once. We update values below.
+    []
   );
 
-  // Update uniforms when theme changes
   useFrame((state) => {
     const { clock } = state;
     if (mesh.current) {
@@ -156,10 +159,10 @@ function BackgroundShader({ theme }: { theme: Theme }) {
         mat.uniforms.uTime.value = clock.getElapsedTime();
         mat.uniforms.uResolution.value.set(size.width, size.height);
         
-        // Dynamic update for smooth transitions (optional, here instant)
-        mat.uniforms.uColorBg.value.set(...colors.bg);
-        mat.uniforms.uColorRibbon1.value.set(...colors.r1);
-        mat.uniforms.uColorRibbon2.value.set(...colors.r2);
+        const activeColors = customColors || THEMES[theme];
+        mat.uniforms.uColorBg.value.set(...activeColors.bg);
+        mat.uniforms.uColorRibbon1.value.set(...activeColors.r1);
+        mat.uniforms.uColorRibbon2.value.set(...activeColors.r2);
     }
   });
 
@@ -180,7 +183,7 @@ function BackgroundShader({ theme }: { theme: Theme }) {
 import { useThemeStore } from "@/lib/store/themeStore";
 
 export function NexusBackground({ theme: propTheme }: { theme?: Theme }) {
-  const { theme: storeTheme } = useThemeStore();
+  const { theme: storeTheme, customColors } = useThemeStore();
   const activeTheme = propTheme || storeTheme || 'default';
 
   return (
@@ -195,7 +198,7 @@ export function NexusBackground({ theme: propTheme }: { theme?: Theme }) {
             }}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
         >
-            <BackgroundShader theme={activeTheme} />
+            <BackgroundShader theme={activeTheme} customColors={customColors} />
         </Canvas>
     </div>
   );

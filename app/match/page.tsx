@@ -37,6 +37,9 @@ import {
 import type { GameType } from "@/types/gameType";
 import { computeWinProbability } from "@/lib/winProbability";
 import { validateMatchId } from "@/lib/security";
+import { getAuthUserSafe } from "@/lib/session";
+import { getUserTierServer, canDoCoachingServer } from "@/lib/tier-server";
+import { generateHeuristicReport } from "@/lib/coachingUtils";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -187,21 +190,10 @@ export default async function Home({
 
   const finalMatchId = selectedMatchId;
 
-  // Resolve User ID for quota/tier
-  let userId: string | undefined = undefined;
-  if (puuid) {
-    try {
-      const user = await import("@/lib/db/ensureUser").then(m => m.ensureUser({ riotPuuid: puuid }));
-      userId = user.id;
-    } catch (e) {
-      console.warn("Failed to ensure user on page load", e);
-    }
-  }
+  // Resolve User ID for quota/tier (using session or PUUID cookie fallback)
+  const userId = (await getAuthUserSafe()) || undefined;
 
   // Coaching & Tier Logic
-  const { generateHeuristicReport } = await import("@/lib/coachingUtils");
-  const { getUserTierServer, canDoCoachingServer } = await import("@/lib/tier-server");
-  
   const coachingTier = await getUserTierServer(userId);
   const coachingQuota = await canDoCoachingServer(userId);
   
@@ -215,7 +207,7 @@ export default async function Home({
   return (
     <Shell>
       <MatchDetailTransitionWrapper matchId={finalMatchId}>
-        <MatchThemeController win={data.me.win} />
+        <MatchThemeController win={data.me.win} champion={data.me.champion} />
 
         <section className="relative mx-auto max-w-7xl px-6 pb-16 pt-32">
           {/* HEADER HERO */}

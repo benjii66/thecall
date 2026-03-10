@@ -27,8 +27,31 @@ if (typeof window === "undefined") {
 }
 
 export const metadata: Metadata = {
-  title: "The Call",
-  description: "LoL match breakdown (timeline, duel, builds, audit).",
+  title: "The Call — League of Legends Post-Game Coaching",
+  description: "Stop spamming games. TheCall identifies the exact turning point of your LoL matches and gives you a concrete action plan for the next level.",
+  keywords: ["League of Legends", "LoL", "Coaching", "Analysis", "Macro", "Riot Games", "Match Breakdown"],
+  openGraph: {
+    title: "The Call — Master the Macro",
+    description: "Your precision LoL analyst. See where the game turns and how to take control.",
+    url: "https://thecall.tech",
+    siteName: "The Call",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "The Call - League of Legends Coaching",
+      },
+    ],
+    locale: "fr_FR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "The Call — LoL Strategic Analysis",
+    description: "Understand the why, not just the stats. Precision coaching for Bronze to Gold players.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

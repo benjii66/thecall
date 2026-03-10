@@ -262,7 +262,7 @@ import { prisma } from "@/lib/prisma"; // Added import
 
 // Main POST handler:
 // ... imports ...
-import { getSessionUserId } from "@/lib/session";
+import { getAuthUserSafe } from "@/lib/session";
 import { persistMatchJson } from "@/lib/db/persistMatchJson";
 import { persistTimelineJson } from "@/lib/db/persistTimelineJson";
 import { getRawMatch, getRawTimeline } from "@/lib/controllers/matchController";
@@ -314,8 +314,8 @@ export async function POST(req: NextRequest) {
     }
     if (!matchData) return NextResponse.json({ error: "Failed to retrieve match data" }, { status: 404 });
 
-    // 1. Authenticate Session
-    const userId = await getSessionUserId();
+    // 1. Authenticate Session (Soft fallback allowed)
+    const userId = await getAuthUserSafe();
     
     if (!userId) {
         console.warn("[COACH_API] No session found");

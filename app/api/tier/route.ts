@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getUserTierServer, getUserTierLimitsServer, getUserSubscriptionServer } from "@/lib/tier-server";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
-import { getSessionUserId } from "@/lib/session";
+import { getAuthUserSafe } from "@/lib/session";
 
 export async function GET(req: Request) {
   // Rate limiting
@@ -24,8 +24,8 @@ export async function GET(req: Request) {
     return response;
   }
   
-  // 1.5 Authenticate Session
-  const userId = await getSessionUserId();
+  // 1.5 Authenticate Session (Soft fallback allowed)
+  const userId = await getAuthUserSafe();
 
   // En mode dev, vérifier si un tier est stocké dans les headers (simulation)
   const devTier = req.headers.get("x-dev-tier") as "free" | "pro" | null;
