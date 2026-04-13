@@ -6,7 +6,6 @@
 We take the security of **TheCall** seriously. If you believe you have found a security vulnerability, please **do not open a public issue**. Instead, please report it through one of the following channels:
 
 - **Private Disclosure**: Reach out to the repository owner via their GitHub profile contact information.
-- **Direct Contact**: [Insert your contact method here, e.g., email or Discord DM]
 
 We will acknowledge your report within 48 hours and provide a timeline for a fix.
 
@@ -34,7 +33,6 @@ TheCall is built with security-first principles:
 La sécurité de **TheCall** est une priorité. Si vous pensez avoir découvert une vulnérabilité, merci de **ne pas ouvrir d'issue publique**. Veuillez plutôt la signaler via les canaux suivants :
 
 - **Divulgation Privée** : Contactez le propriétaire du dépôt via les informations de contact de son profil GitHub.
-- **Contact Direct** : [Insérez votre méthode de contact ici, ex: email ou DM Discord]
 
 Nous accuserons réception de votre rapport sous 48 heures et vous fournirons un délai pour la résolution.
 
