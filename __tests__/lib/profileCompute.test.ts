@@ -3,7 +3,7 @@ process.env.OPENAI_API_KEY = "test-key";
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import { computeProfileData } from "@/app/api/profile/route";
 import { riotFetch } from "@/lib/riot";
-import { getRawMatch, getRawTimeline } from "@/lib/controllers/matchController";
+import { getRawMatch } from "@/lib/controllers/matchController";
 import { prisma } from "@/lib/prisma";
 import { setProfileAggregate } from "@/lib/profileAggregateCache";
 import { getUserTierServer } from "@/lib/tier-server";
