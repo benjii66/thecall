@@ -10,6 +10,12 @@ export async function POST(req: NextRequest) {
     const { key, value } = await req.json();
     if (!key) return NextResponse.json({ error: "Key is required" }, { status: 400 });
 
+    // Block sensitive keys
+    const sensitiveKeys = ["OPENAI_API_KEY"];
+    if (sensitiveKeys.includes(key)) {
+      return NextResponse.json({ error: "This key must be set via environment variables only." }, { status: 403 });
+    }
+
     // Upsert the setting
     await prisma.systemSetting.upsert({
       where: { key },
@@ -29,7 +35,12 @@ export async function GET() {
     const session = await verifyAdminSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const settings = await prisma.systemSetting.findMany();
+    const sensitiveKeys = ["OPENAI_API_KEY"];
+    const settings = await prisma.systemSetting.findMany({
+      where: {
+        key: { notIn: sensitiveKeys }
+      }
+    });
     
     // Mask values for security
     const masked = settings.map(s => ({

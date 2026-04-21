@@ -15,12 +15,12 @@ import { getSessionUserId } from "@/lib/session";
 
 import { hashFeatures, getCachedAiProfile, setCachedAiProfile } from "@/lib/profileAiCache";
 import { ensureUser } from "@/lib/db/ensureUser";
-import { getProfileAggregate } from "@/lib/profileAggregateCache";
+import { getProfileAggregate, setProfileAggregate } from "@/lib/profileAggregateCache";
 import { profileSchema } from "@/lib/validations/api";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
-
+export const dynamic = "force-dynamic";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // --- Helper Functions ---
@@ -175,8 +175,9 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
   // If skipRiotCheck is true, we ONLY look at DB.
   // If we must check Riot, we fetch IDs.
 
+  const startTime = performance.now();
   let rawMatches: { match: RiotMatch; timeline?: RiotTimeline; matchId: string }[] = [];
-  const matchesToFetch = 20;
+  const matchesToFetch = 10;
 
   if (!options.skipRiotCheck) {
       // Check Riot for new matches
@@ -188,21 +189,24 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
              // If we have seen this match, we MIGHT not need to fetch, BUT computeProfileData is called when we assume we need to update OR sync.
              // If we are forced to check, we check.
              
-      if (latestId !== lastMatchIdSeen) {
-                 // Fetch details and persist (Light Sync)
-                 // We ONLY fetch Match Details (summary), NOT Timeline
-                 // This allows fast "Pre-fetch" of last 20 games for Profile Analysis
-                  // Fetch details and persist (Sequential Batch Ingestion)
-                  for (const id of matchIds) {
-                      try {
-                          await getRawMatch(id, userId, puuid, 'full'); 
-                          // Only fetch timeline for the most recent 10 games
-                          if (matchIds.indexOf(id) < 10) {
+             if (latestId !== lastMatchIdSeen || options.forceRiotCheck) {
+                  // Fetch details and persist (Light Sync)
+                  // We ONLY fetch Match Details (summary), NOT Timeline
+                  // This allows fast "Pre-fetch" of last 10 games for Profile Analysis
+                   
+                  // Batch ingestion by chunks of 3 to respect "minimal simultaneous requests" rule
+                  const CHUNK_SIZE = 3;
+                  for (let i = 0; i < matchIds.length; i += CHUNK_SIZE) {
+                      const chunk = matchIds.slice(i, i + CHUNK_SIZE);
+                      await Promise.all(chunk.map(async (id) => {
+                          try {
+                              await getRawMatch(id, userId, puuid, 'full'); 
+                              // Only fetch timeline for the most recent 10 games (now all 10 since count is 10)
                               await getRawTimeline(id, userId);
+                          } catch (e) { 
+                              logger.warn(`Failed to ingest match ${id}`, { error: e }); 
                           }
-                      } catch (e) { 
-                          logger.warn(`Failed to ingest match ${id}`, { error: e }); 
-                      }
+                      }));
                   }
 
                   // Update User's lastMatchIdSeen
@@ -225,10 +229,18 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
       const dbMatches = await prisma.match.findMany({
         where: { userId, hasMatchJson: true },
         orderBy: { gameCreation: 'desc' },
-        take: matchesToFetch
+        take: 50 // Fetch more in case the user has analyzed other players' matches (Coaching)
       });
-      if (dbMatches.length > 0) {
-         rawMatches = dbMatches.map(m => ({ 
+      
+      // Filter out matches where the user didn't actually play
+      const ownedMatches = dbMatches.filter(m => {
+         const mj = m.matchJson as any;
+         if (!mj || !mj.info || !mj.info.participants) return false;
+         return mj.info.participants.some((p: any) => p.puuid === puuid);
+      }).slice(0, matchesToFetch);
+
+      if (ownedMatches.length > 0) {
+         rawMatches = ownedMatches.map(m => ({ 
              match: m.matchJson as unknown as RiotMatch, 
              timeline: m.timelineJson ? (m.timelineJson as unknown as RiotTimeline) : undefined,
              matchId: m.matchId 
@@ -277,8 +289,13 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
         objectives = events.filter(e => (e.kind === 'dragon' || e.kind === 'baron' || e.kind === 'herald') && e.team === 'ally').length;
      }
 
+     const totalCS = (meRaw.totalMinionsKilled || 0) + (meRaw.neutralMinionsKilled || 0);
+     const gameDurationMin = match.info.gameDuration / 60;
+     const csPerMin = gameDurationMin > 0 ? Number((totalCS / gameDurationMin).toFixed(1)) : 0;
+
      matches.push({
          matchId,
+         gameCreation: match.info.gameCreation,
          me: {
              role: roleLabel(meRaw.teamPosition || meRaw.individualPosition),
              champion: meRaw.championName,
@@ -286,7 +303,9 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
              kda: formatKDA(meRaw.kills, meRaw.deaths, meRaw.assists),
              k: meRaw.kills, d: meRaw.deaths, a: meRaw.assists,
              kp: myKP, gold: meRaw.goldEarned,
-             deaths: meRaw.deaths, objectives
+             deaths: meRaw.deaths, objectives,
+             visionScore: meRaw.visionScore || 0,
+             csPerMin
          }
      });
   }
@@ -343,6 +362,17 @@ export async function computeProfileData(puuid: string, options: FetchOptions = 
       aggression, objectiveFocus, teamFightPresence,
       description: generatePlaystyleDescription(aggression, objectiveFocus, teamFightPresence)
   };
+
+  // Build History (Reverse to have chronological order)
+  const history = matches.map(m => ({
+      matchId: m.matchId,
+      gameCreation: m.gameCreation,
+      win: m.me.win,
+      champion: m.me.champion,
+      csPerMin: m.me.csPerMin,
+      kp: m.me.kp,
+      visionScore: m.me.visionScore
+  })).reverse();
 
   let isAiGenerated = false;
   let reportQuality = "heuristic";
@@ -661,10 +691,11 @@ ${JSON.stringify({ thresholds, features })}
       recentWinRate: matches.length > 0 ? Math.round((matches.slice(0,10).filter(m => m.me.win).length / Math.min(matches.length, 10))*100) : 0,
       recentGames: Math.min(matches.length, 10),
       improving: improving
-    }
+    },
+    history
   };
 
-  return { 
+  const result = { 
       profile, 
       meta: { 
           quality: reportQuality, 
@@ -674,6 +705,17 @@ ${JSON.stringify({ thresholds, features })}
           createdAt: reportCreatedAt ? reportCreatedAt.toISOString() : new Date().toISOString()
       } 
   };
+
+  // 4. Cache the Aggregate (Missing in previous version)
+  if (!options.forceRiotCheck || isAiGenerated) {
+      // We only cache if we have a stable result or if we specifically wanted to update it
+      await setProfileAggregate(puuid, result);
+  }
+
+  const duration = performance.now() - startTime;
+  logger.info(`[ProfileAPI] computeProfileData finished in ${duration.toFixed(2)}ms`, { puuid, cached: !!reportCreatedAt });
+
+  return result;
 }
 
 // --- GET Handler ---
@@ -712,13 +754,20 @@ export async function GET(req: NextRequest) {
     // 4. Stale/Fallback or Cold
     // Return empty/stale with needsSync=true so frontend calls /api/sync/start
     
-    const user = await prisma.user.findFirst({ where: { riotPuuid: puuid } });
-    if (!user) {
-         // return empty with needsSync=true
-         return NextResponse.json({ needsSync: true, source: "empty" });
+    // User exists.
+    
+    // If refresh requested, we compute WITH Riot check
+    if (refresh) {
+        try {
+            const data = await computeProfileData(puuid, { skipRiotCheck: false });
+            return NextResponse.json({ ...data, needsSync: false, source: "refresh" });
+        } catch (e) {
+            logger.error("Refresh failed", e);
+            // Fallback to stale if possible
+        }
     }
     
-    // User exists. Compute from DB (fast, no Riot).
+    // Default: Compute from DB (fast, no Riot) and signal need for sync
     try {
         const data = await computeProfileData(puuid, { skipRiotCheck: true });
         return NextResponse.json({ ...data, needsSync: true, source: "db_stale" });

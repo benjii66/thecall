@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+
 import { Target, AlertCircle, CheckCircle } from "lucide-react";
 import type { PlayerProfile } from "@/types/profile";
 import { useLanguage } from "@/lib/language";
@@ -39,11 +39,8 @@ export function ProfileInsightCard({ insight }: { insight: Insight }) {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className={`group relative overflow-hidden rounded-2xl border p-5 backdrop-blur transition-all hover:border-opacity-50 ${colorClass}`}
+    <div
+      className={`group relative overflow-hidden rounded-2xl border p-5 backdrop-blur transition-all hover:bg-white/5 ${colorClass}`}
     >
       {/* Glow effect */}
       <div className={`absolute -inset-1 bg-gradient-to-r ${insight.type === "strength" ? "from-emerald-500/20" : insight.type === "weakness" ? "from-red-500/20" : "from-cyan-500/20"} to-transparent opacity-0 blur-xl transition-opacity group-hover:opacity-100`} />
@@ -85,6 +82,6 @@ export function ProfileInsightCard({ insight }: { insight: Insight }) {
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }

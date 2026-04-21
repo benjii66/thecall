@@ -36,4 +36,15 @@ export type PlayerProfile = {
     recentGames: number;
     improving: boolean;
   };
+  history?: TrendPoint[];
+};
+
+export type TrendPoint = {
+  matchId: string;
+  gameCreation: number;
+  win: boolean;
+  champion: string;
+  csPerMin: number;
+  kp: number;
+  visionScore: number;
 };

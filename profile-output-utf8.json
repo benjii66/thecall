@@ -1,0 +1,248 @@
+﻿{
+    "profile":  {
+                    "totalGames":  10,
+                    "overallWinRate":  100,
+                    "mainRole":  "Mid",
+                    "roleStats":  [
+                                      {
+                                          "role":  "Mid",
+                                          "games":  6,
+                                          "wins":  6,
+                                          "losses":  0,
+                                          "winRate":  100,
+                                          "avgKDA":  "7/5/7",
+                                          "avgKP":  33,
+                                          "avgGold":  11950,
+                                          "mostPlayedChampions":  [
+                                                                      {
+                                                                          "champion":  "Akali",
+                                                                          "games":  3,
+                                                                          "winRate":  100
+                                                                      },
+                                                                      {
+                                                                          "champion":  "Irelia",
+                                                                          "games":  2,
+                                                                          "winRate":  100
+                                                                      },
+                                                                      {
+                                                                          "champion":  "Sylas",
+                                                                          "games":  1,
+                                                                          "winRate":  100
+                                                                      }
+                                                                  ]
+                                      },
+                                      {
+                                          "role":  "Top",
+                                          "games":  2,
+                                          "wins":  2,
+                                          "losses":  0,
+                                          "winRate":  100,
+                                          "avgKDA":  "11/6/1",
+                                          "avgKP":  32,
+                                          "avgGold":  15401,
+                                          "mostPlayedChampions":  [
+                                                                      {
+                                                                          "champion":  "Akali",
+                                                                          "games":  1,
+                                                                          "winRate":  100
+                                                                      },
+                                                                      {
+                                                                          "champion":  "Riven",
+                                                                          "games":  1,
+                                                                          "winRate":  100
+                                                                      }
+                                                                  ]
+                                      },
+                                      {
+                                          "role":  "Support",
+                                          "games":  1,
+                                          "wins":  1,
+                                          "losses":  0,
+                                          "winRate":  100,
+                                          "avgKDA":  "15/5/9",
+                                          "avgKP":  71,
+                                          "avgGold":  17672,
+                                          "mostPlayedChampions":  [
+                                                                      {
+                                                                          "champion":  "Akali",
+                                                                          "games":  1,
+                                                                          "winRate":  100
+                                                                      }
+                                                                  ]
+                                      },
+                                      {
+                                          "role":  "Bot",
+                                          "games":  1,
+                                          "wins":  1,
+                                          "losses":  0,
+                                          "winRate":  100,
+                                          "avgKDA":  "16/7/3",
+                                          "avgKP":  61,
+                                          "avgGold":  17958,
+                                          "mostPlayedChampions":  [
+                                                                      {
+                                                                          "champion":  "Aphelios",
+                                                                          "games":  1,
+                                                                          "winRate":  100
+                                                                      }
+                                                                  ]
+                                      }
+                                  ],
+                    "playstyle":  {
+                                      "aggression":  "medium",
+                                      "objectiveFocus":  "low",
+                                      "teamFightPresence":  "low",
+                                      "description":  "Ton profil montre une excellente performance avec un taux de victoire de 100% sur les 10 derniÃ¨res parties. Cela indique une domination dans les rÃ´les que tu as jouÃ©s, notamment en Mid et Top."
+                                  },
+                    "insights":  [
+                                     {
+                                         "type":  "strength",
+                                         "title":  "Taux de victoire parfait",
+                                         "description":  "Gagner toutes tes parties montre une maÃ®trise exceptionnelle de tes champions et des mÃ©caniques du jeu.",
+                                         "priority":  "high",
+                                         "data":  [
+                                                      {
+                                                          "label":  "overall_win_rate",
+                                                          "value":  "100%"
+                                                      }
+                                                  ]
+                                     },
+                                     {
+                                         "type":  "weakness",
+                                         "title":  "Faible participation aux objectifs",
+                                         "description":  "Un faible taux d\u0027objectifs peut indiquer un manque de focus sur les objectifs de la carte, ce qui pourrait nuire Ã  la victoire Ã  long terme.",
+                                         "priority":  "medium",
+                                         "data":  [
+                                                      {
+                                                          "label":  "high_objectives",
+                                                          "value":  "10%"
+                                                      }
+                                                  ]
+                                     },
+                                     {
+                                         "type":  "recommendation",
+                                         "title":  "AmÃ©liorer la participation aux objectifs",
+                                         "description":  "Commence Ã  pinguer les objectifs et Ã  coordonner avec ton Ã©quipe pour les prendre. Pratique le contrÃ´le de la carte et l\u0027appel des objectifs lors de tes parties.",
+                                         "priority":  "high"
+                                     },
+                                     {
+                                         "type":  "recommendation",
+                                         "title":  "Augmenter le taux de kill participation (KP)",
+                                         "description":  "Fais attention Ã  t\u0027engager dans les combats d\u0027Ã©quipe pour augmenter ton KP. Regarde des replays de tes parties pour identifier les occasions oÃ¹ tu aurais pu participer davantage aux combats.",
+                                         "priority":  "high"
+                                     },
+                                     {
+                                         "type":  "recommendation",
+                                         "title":  "Continuer Ã  jouer des champions maÃ®trisÃ©s",
+                                         "description":  "Reste sur tes champions les plus performants pour maximiser tes chances de succÃ¨s. Analyse tes performances avec Akali, Irelia et d\u0027autres champions que tu maÃ®trises.",
+                                         "priority":  "high"
+                                     }
+                                 ],
+                    "trends":  {
+                                   "recentWinRate":  100,
+                                   "recentGames":  10,
+                                   "improving":  true
+                               },
+                    "history":  [
+                                    {
+                                        "matchId":  "EUW1_7701215994",
+                                        "gameCreation":  1769354544055,
+                                        "win":  true,
+                                        "champion":  "Irelia",
+                                        "csPerMin":  4.9,
+                                        "kp":  49,
+                                        "visionScore":  15
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7701253165",
+                                        "gameCreation":  1769355769190,
+                                        "win":  true,
+                                        "champion":  "Riven",
+                                        "csPerMin":  5.5,
+                                        "kp":  11,
+                                        "visionScore":  11
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7701292438",
+                                        "gameCreation":  1769357091410,
+                                        "win":  true,
+                                        "champion":  "Aphelios",
+                                        "csPerMin":  5,
+                                        "kp":  61,
+                                        "visionScore":  19
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7701773624",
+                                        "gameCreation":  1769371470234,
+                                        "win":  true,
+                                        "champion":  "Akali",
+                                        "csPerMin":  3.5,
+                                        "kp":  71,
+                                        "visionScore":  16
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7701813308",
+                                        "gameCreation":  1769372759839,
+                                        "win":  true,
+                                        "champion":  "Akali",
+                                        "csPerMin":  3.1,
+                                        "kp":  33,
+                                        "visionScore":  8
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7702799769",
+                                        "gameCreation":  1769446581546,
+                                        "win":  true,
+                                        "champion":  "Akali",
+                                        "csPerMin":  4.1,
+                                        "kp":  35,
+                                        "visionScore":  22
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7702893583",
+                                        "gameCreation":  1769449746269,
+                                        "win":  true,
+                                        "champion":  "Akali",
+                                        "csPerMin":  4.4,
+                                        "kp":  53,
+                                        "visionScore":  29
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7702952183",
+                                        "gameCreation":  1769451540323,
+                                        "win":  true,
+                                        "champion":  "Akali",
+                                        "csPerMin":  3.2,
+                                        "kp":  30,
+                                        "visionScore":  8
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7712415958",
+                                        "gameCreation":  1769983717489,
+                                        "win":  true,
+                                        "champion":  "Sylas",
+                                        "csPerMin":  4.2,
+                                        "kp":  32,
+                                        "visionScore":  8
+                                    },
+                                    {
+                                        "matchId":  "EUW1_7713697690",
+                                        "gameCreation":  1770065655751,
+                                        "win":  true,
+                                        "champion":  "Irelia",
+                                        "csPerMin":  5.6,
+                                        "kp":  17,
+                                        "visionScore":  11
+                                    }
+                                ]
+                },
+    "meta":  {
+                 "quality":  "premium",
+                 "aiUsed":  true,
+                 "modelUsed":  "gpt-4o-mini",
+                 "cached":  true,
+                 "createdAt":  "2026-04-06T10:12:22.605Z"
+             },
+    "needsSync":  true,
+    "source":  "db_stale"
+}

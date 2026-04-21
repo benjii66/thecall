@@ -24,15 +24,15 @@ export async function getSystemSetting(key: string): Promise<string | undefined>
 }
 
 /**
- * Specifically for the Riot API Key which can have multiple names in env.
+ * Specifically for the Riot API Key which can be updated daily via DB.
  */
 export async function getRiotApiKey(): Promise<string | undefined> {
   return await getSystemSetting("RIOT_API_KEY");
 }
 
 /**
- * Specifically for the OpenAI API Key.
+ * Specifically for the OpenAI API Key which must ONLY come from env for security.
  */
 export async function getOpenAIApiKey(): Promise<string | undefined> {
-  return await getSystemSetting("OPENAI_API_KEY");
+  return process.env.OPENAI_API_KEY;
 }

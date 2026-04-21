@@ -230,7 +230,7 @@ import { prisma } from "@/lib/prisma";
 
 import { persistMatchMetadata } from "@/lib/db/persistMatchMetadata";
 import { persistMatchJson } from "@/lib/db/persistMatchJson";
-// import persistMatch removed
+import { persistTimelineJson } from "@/lib/db/persistTimelineJson";
 
 type PersistenceStrategy = 'none' | 'metadata' | 'full';
 
@@ -238,84 +238,83 @@ export async function getRawMatch(matchId: string, userId?: string, userPuuid?: 
   const region = "europe";
   const redisKey = `match:${region}:${matchId}`;
 
-  return withRedisCache(
+  // 1. Check DB first, if we need full data and it exists, return it directly to save Redis/Riot hit
+  let dbMatch = null;
+  if (userId) {
+      dbMatch = await prisma.match.findUnique({
+          where: { userId_matchId: { userId, matchId } },
+      });
+      if (strategy === 'full' && dbMatch && dbMatch.hasMatchJson && dbMatch.matchJson) {
+          logger.debug(`[DB] match DB HIT (matchId=${matchId})`);
+          return dbMatch.matchJson as unknown as RiotMatch;
+      }
+  }
+
+  // 2. Fetch from Redis or Riot (fetcher is only executed if Redis misses)
+  const matchData = await withRedisCache(
     redisKey,
     async () => {
-        // 1. DB Check - Strategy dependent
-        if (userId) {
-            // If strategy is 'full', we need matchJson.
-            // If strategy is 'metadata', we technically only need metadata columns but return type is RiotMatch.
-            // However, we can't easily reconstruct RiotMatch from just metadata. 
-            // So we check if matchJson exists.
-            
-            const dbMatch = await prisma.match.findUnique({
-                where: { userId_matchId: { userId, matchId } },
-            });
-
-            if (dbMatch && dbMatch.hasMatchJson && dbMatch.matchJson) {
-                logger.debug(`[DB] match DB HIT (matchId=${matchId})`); // Changed to debug to reduce noise
-                return dbMatch.matchJson as unknown as RiotMatch;
-            }
-            // If we have metadata but no JSON, and we need JSON (for return type), we must fetch from Riot.
-        }
-
-        // 2. Riot Fetch
-        const riotData = await riotFetch<RiotMatch>(
-            `/lol/match/v5/matches/${matchId}`, 
-            region, 
-            { revalidate: 3600, tags: [`match-${matchId}`] }
+        logger.debug(`[Riot API] Fetching Match Data: ${matchId}`);
+        return await riotFetch<RiotMatch>(
+           `/lol/match/v5/matches/${matchId}`, 
+           region, 
+           { revalidate: 3600, tags: [`match-${matchId}`] }
         );
-
-        // 3. Persistence
-        if (userId && userPuuid) {
-            if (strategy === 'metadata') {
-                await persistMatchMetadata({ userId, userPuuid, matchId, matchJson: riotData });
-            } else if (strategy === 'full') {
-                 await persistMatchJson({ userId, matchId, matchJson: riotData });
-            }
-        }
-        
-        return riotData;
     },
     86400
   );
-}
 
-import { persistTimelineJson } from "@/lib/db/persistTimelineJson";
+  // 3. Persist ALL fetching results depending on strategy (even if they came from Redis)
+  if (userId && userPuuid) {
+      if (strategy === 'metadata') {
+          await persistMatchMetadata({ userId, userPuuid, matchId, matchJson: matchData });
+      } else if (strategy === 'full') {
+          if (!dbMatch || !dbMatch.hasMatchJson) {
+              await persistMatchJson({ userId, matchId, matchJson: matchData });
+          }
+      }
+  }
+
+  return matchData;
+}
 
 export async function getRawTimeline(matchId: string, userId?: string): Promise<RiotTimeline | null> {
     const region = "europe";
-    return withRedisCache(
+    
+    // 1. Check DB first
+    let dbMatch = null;
+    if (userId) {
+        dbMatch = await prisma.match.findUnique({
+            where: { userId_matchId: { userId, matchId } },
+            select: { timelineJson: true, hasTimelineJson: true }
+        });
+        if (dbMatch?.hasTimelineJson && dbMatch.timelineJson) {
+            logger.debug(`[DB] timeline DB HIT (matchId=${matchId})`);
+            return dbMatch.timelineJson as unknown as RiotTimeline;
+        }
+    }
+
+    // 2. Fetch from Redis or Riot
+    const timelineData = await withRedisCache(
         `timeline:${region}:${matchId}:v1`,
         async () => {
-             // DB Check
-             if (userId) {
-                 const dbMatch = await prisma.match.findUnique({
-                     where: { userId_matchId: { userId, matchId } },
-                     select: { timelineJson: true, hasTimelineJson: true }
-                 });
-                 if (dbMatch?.hasTimelineJson && dbMatch.timelineJson) {
-                     logger.debug(`[DB] timeline DB HIT (matchId=${matchId})`);
-                     return dbMatch.timelineJson as unknown as RiotTimeline;
-                 }
-             }
-
-             // Riot Fetch
-             const riotData = await riotFetch<RiotTimeline>(
+             return await riotFetch<RiotTimeline>(
                  `/lol/match/v5/matches/${matchId}/timeline`, 
                  region, 
                  { revalidate: 3600, tags: [`match-${matchId}-timeline`] }
              );
-
-             // DB Save
-             if (userId && riotData) {
-                 await persistTimelineJson({ userId, matchId, timelineJson: riotData });
-             }
-             
-             return riotData;
         },
         86400
-   );
+    );
+
+    // 3. Persist if needed (even if it came from Redis)
+    if (userId && timelineData) {
+        if (!dbMatch || !dbMatch.hasTimelineJson) {
+            await persistTimelineJson({ userId, matchId, timelineJson: timelineData });
+        }
+    }
+             
+    return timelineData;
 }
 
 export async function getMatchDetailsController(matchId: string, puuid: string): Promise<MatchPageData | null> {

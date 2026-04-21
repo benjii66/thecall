@@ -89,26 +89,26 @@ export default function AdminSettingsUI() {
         <div className="grid gap-6">
           <SettingCard 
             title="Riot Games API Key"
-            description="Utilisée pour récupérer les données de match et le statut des joueurs. Prioritaire sur RIOT_API_KEY dans .env."
+            description="Clé de développement Riot Games. Expire toutes les 24h. Prioritaire sur RIOT_API_KEY dans .env."
             currentValue={settings["RIOT_API_KEY"]}
             onSave={(val: string) => handleUpdate("RIOT_API_KEY", val)}
             isSaving={saving === "RIOT_API_KEY"}
           />
 
-          <SettingCard 
-            title="OpenAI API Key"
-            description="Utilisée pour les analyses de coaching automatiques (gpt-4o-mini). Prioritaire sur OPENAI_API_KEY dans .env."
-            currentValue={settings["OPENAI_API_KEY"]}
-            onSave={(val: string) => handleUpdate("OPENAI_API_KEY", val)}
-            isSaving={saving === "OPENAI_API_KEY"}
-          />
-        </div>
-
-        <div className="rounded-2xl border border-blue-500/10 bg-blue-500/5 p-4 text-blue-400 flex gap-3">
-           <Info className="h-5 w-5 shrink-0" />
-           <p className="text-[11px] leading-relaxed">
-             <strong>Note sur la sécurité :</strong> Les clés sauvegardées ici sont stockées de manière chiffrée en transit mais visibles par quiconque ayant accès à cette interface d'administration. Si aucune clé n'est définie ici, le système utilisera les variables d'environnement définies lors du déploiement.
-           </p>
+          <div className="rounded-3xl border border-blue-500/20 bg-blue-500/5 p-6 backdrop-blur-xl flex flex-col sm:flex-row items-center gap-6">
+            <div className="h-12 w-12 bg-blue-500/10 rounded-2xl flex items-center justify-center shrink-0 border border-blue-500/20">
+               <Info className="h-6 w-6 text-blue-400" />
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <h3 className="text-lg font-bold text-white">OpenAI API Key</h3>
+              <p className="text-white/50 text-xs mt-1">
+                Gérée exclusivement via Vercel pour une sécurité maximale.
+              </p>
+            </div>
+            <div className="px-3 py-1 bg-white/5 rounded-full text-[10px] font-mono text-white/40 border border-white/10 shrink-0">
+               OPENAI_API_KEY
+            </div>
+          </div>
         </div>
 
         <div className="mt-12 space-y-4">

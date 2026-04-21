@@ -114,7 +114,9 @@ export function LanguageSwitcher() {
         title="Changer de langue / Change language"
       >
         <Globe size={16} className="text-white/60" />
-        <span className="hidden sm:inline text-xs font-medium uppercase">{language}</span>
+        <span className="hidden sm:inline text-xs font-medium uppercase">
+          {mounted ? language : ""}
+        </span>
         <ChevronDown size={12} className={`hidden sm:block text-white/40 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </motion.button>
       {mounted && createPortal(menuContent, document.body)}

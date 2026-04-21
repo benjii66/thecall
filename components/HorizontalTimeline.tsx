@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { TimelineEvent } from "@/types/timeline";
+import { useMatchStore } from "@/lib/store/matchStore";
 
 /* ----------------------------------
    ICONS
@@ -80,6 +81,7 @@ type Cluster = {
 ---------------------------------- */
 
 export function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
+  const { highlightedMinute } = useMatchStore();
   if (!events.length) return null;
 
   const DENSE_MODE = false; // true = Key Moments only, false = all events
@@ -298,6 +300,8 @@ export function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
         {/* Baseline centrée */}
         <div className="absolute left-0 right-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-white/8" />
 
+        {/* Plus de marqueur vertical ici, le halo doré sur l'icône suffit */}
+
         {/* CLUSTERS */}
         {clusterPositions.map(({ cluster, leftPercent, topPx }, idx) => {
           const { mainEvent, events, team } = cluster;
@@ -328,7 +332,11 @@ export function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
             : BASE_Y - (topPx + DOT_R);
 
           const isInvolved = events.some((e) => e.involved);
-          const ringClass = isInvolved
+          const isKeyMoment = highlightedMinute !== null && mainEvent.minute === highlightedMinute;
+
+          const ringClass = isKeyMoment
+            ? "ring-2 ring-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.8)] border-amber-400/50 scale-110 z-20"
+            : isInvolved
             ? "ring-1 ring-white/30 shadow-[0_0_10px_rgba(255,255,255,0.14)]"
             : "";
 

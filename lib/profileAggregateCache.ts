@@ -3,7 +3,7 @@ import { logger } from "./logger";
 
 const AGG_CACHE_TTL = 30 * 60; // 30 minutes
 const AGG_CACHE_PREFIX = "profile:agg";
-const VERSION = "v1";
+const VERSION = "v2";
 
 export async function getProfileAggregate(puuid: string): Promise<any | null> {
   const redis = await getRedisClient();
@@ -33,8 +33,23 @@ export async function setProfileAggregate(puuid: string, data: any): Promise<voi
     await redis.set(key, JSON.stringify(data), {
       ex: AGG_CACHE_TTL
     });
-  } catch (error) {
+   } catch (error) {
      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     logger.error("[ProfileAggCache] Set failed", { error: error as any, key });
+  }
+}
+
+export async function invalidateProfileAggregate(puuid: string): Promise<void> {
+  const redis = await getRedisClient();
+  if (!redis) return;
+
+  const key = `${AGG_CACHE_PREFIX}:${puuid}:${VERSION}`;
+
+  try {
+    await redis.del(key);
+    logger.debug(`[ProfileAggCache] Invalidated for puuid=${puuid}`);
+  } catch (error) {
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    logger.error("[ProfileAggCache] Invalidate failed", { error: error as any, key });
   }
 }

@@ -32,7 +32,8 @@ export function AnimatedSection({ children }: { children: ReactNode }) {
     <motion.div
       variants={containerVariants}
       initial="hidden"
-      animate="visible"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-50px" }}
     >
       {children}
     </motion.div>

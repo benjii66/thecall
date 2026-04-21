@@ -1,8 +1,10 @@
 "use client";
 
 import { WinProbPoint } from "@/lib/winProbability";
+import { useMatchStore } from "@/lib/store/matchStore";
 
 export function WinProbabilityChart({ data }: { data: WinProbPoint[] }) {
+  const { highlightedMinute, highlightedLabel, setHighlightedMinute } = useMatchStore();
   if (!data.length) return null;
 
   const maxMinute = Math.max(data[data.length - 1]?.minute ?? 1, 1);
@@ -122,26 +124,62 @@ export function WinProbabilityChart({ data }: { data: WinProbPoint[] }) {
             }}
           />
 
+          {/* Marqueur de minute mise en avant */}
+          {highlightedMinute !== null && (
+            <g>
+              <line
+                x1={(highlightedMinute / maxMinute) * 100}
+                y1="0"
+                x2={(highlightedMinute / maxMinute) * 100}
+                y2="100"
+                stroke="rgba(255, 255, 255, 0.4)"
+                strokeDasharray="2 2"
+                strokeWidth="1"
+              />
+            </g>
+          )}
+
           {/* Point final avec indicateur */}
           {data.length > 0 && (
             <g>
               <circle
                 cx={(last.minute / maxMinute) * 100}
                 cy={100 - last.probability}
-                r="3"
+                r="2.5"
                 fill={isWinning ? "#06b6d4" : "#ef4444"}
-                className="drop-shadow-lg"
-              />
-              <circle
-                cx={(last.minute / maxMinute) * 100}
-                cy={100 - last.probability}
-                r="5"
-                fill={isWinning ? "rgba(6,182,212,0.3)" : "rgba(239,68,68,0.3)"}
-                className="animate-pulse"
               />
             </g>
           )}
         </svg>
+
+        {/* Marqueur de focus (HTML pour éviter les distorsions SVG) */}
+        {highlightedMinute !== null && (
+          <div
+            className="group/focus absolute z-30 flex items-center -translate-y-1/2"
+            style={{
+              left: `${(highlightedMinute / maxMinute) * 100}%`,
+              top: `${100 - (data.find((p) => p.minute === highlightedMinute)?.probability ?? 50)}%`,
+            }}
+          >
+            {/* Point Central */}
+            <div className="h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-amber-400 bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.8)]" />
+            
+            {/* Tooltip Contextuel Permanent */}
+            <div className="ml-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-black/98 px-2 py-1 text-[10px] font-bold text-amber-200 shadow-xl backdrop-blur-sm whitespace-nowrap">
+              {highlightedLabel || "Key Moment"}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setHighlightedMinute(null);
+                }}
+                className="ml-1 rounded hover:bg-white/10 p-0.5 transition-colors"
+                title="Masquer le focus"
+              >
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Labels sur les côtés */}
         <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-medium uppercase tracking-wide text-white/50">

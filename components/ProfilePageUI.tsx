@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { ProfileInsightCard } from "@/components/ProfileInsightCard";
 import { ProfileStats } from "@/components/ProfileStats";
 import { ProfilePlaystyle } from "@/components/ProfilePlaystyle";
+import { ProfileTrends } from "@/components/ProfileTrends";
 import { AnimatedSection, AnimatedItem } from "@/components/AnimatedSection";
 import { ProfilePageTransition } from "@/components/ProfilePageTransition";
 import { MiniProfile } from "@/components/MiniProfile";
@@ -148,6 +149,7 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
   return (
     <ProfilePageTransition>
       <section className="relative mx-auto max-w-6xl px-6 pb-16 pt-10">
+
         {isMini ? (
           <MiniProfile profile={profile} />
         ) : (
@@ -199,6 +201,16 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
               </div>
             </AnimatedSection>
 
+
+            {/* TRENDS */}
+            <div className="mt-10">
+              <SectionTitle
+                title={t("profile.trendsTitle") || "Evolution"}
+                subtitle={t("profile.trendsSubtitle") || "Analyse de ta progression"}
+              />
+              <ProfileTrends history={profile?.history || []} />
+            </div>
+
             {/* PLAYSTYLE */}
             <AnimatedSection>
               <section className="mt-10">
@@ -213,21 +225,17 @@ export function ProfilePageUI({ puuid }: { puuid?: string }) {
             </AnimatedSection>
 
             {/* INSIGHTS IA */}
-            <AnimatedSection>
-              <section className="mt-10">
-                <SectionTitle
-                  title={t("profile.insightsTitle")}
-                  subtitle={t("profile.insightsSubtitle")}
-                />
-                <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {profile.insights.map((insight, i) => (
-                    <AnimatedItem key={i}>
-                      <ProfileInsightCard insight={insight} />
-                    </AnimatedItem>
-                  ))}
-                </div>
-              </section>
-            </AnimatedSection>
+            <section className="mt-10">
+              <SectionTitle
+                title={t("profile.insightsTitle")}
+                subtitle={t("profile.insightsSubtitle")}
+              />
+              <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {profile.insights.map((insight, i) => (
+                  <ProfileInsightCard key={i} insight={insight} />
+                ))}
+              </div>
+            </section>
 
             {/* STATS PAR RÔLE */}
             <AnimatedSection>

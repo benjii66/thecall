@@ -10,6 +10,7 @@ import { ProfileStats } from "./ProfileStats";
 import type { PlayerProfile } from "@/types/profile";
 import { TrendingUp, BarChart3, Target, FileText } from "lucide-react";
 import { useLanguage } from "@/lib/language";
+import { ProfileTrends } from "./ProfileTrends";
 
 interface MiniProfileProps {
   profile: PlayerProfile;
@@ -92,6 +93,15 @@ export function MiniProfile({ profile }: MiniProfileProps) {
         <ConversionBanner variant="mini-profile" />
       )}
 
+      {/* TRENDS (Evolution) */}
+      <div className="mt-8">
+        <SectionTitle
+          title={t("profile.trendsTitle") || "Evolution"}
+          subtitle={t("profile.trendsSubtitle") || "Analyse de ta progression sur 10 matchs"}
+        />
+        <ProfileTrends history={profile.history || []} />
+      </div>
+
       {/* PLAYSTYLE (2-3 traits) */}
       <AnimatedSection>
         <section className="mt-10">
@@ -107,21 +117,17 @@ export function MiniProfile({ profile }: MiniProfileProps) {
 
       {/* INSIGHT HEADLINE (1 seul en free) */}
       {limitedProfile.insights.length > 0 && (
-        <AnimatedSection>
-          <section className="mt-10">
-            <SectionTitle
-              title={t("profile.insightsTitle")}
-              subtitle={isMini ? t("profile.insightsSubtitle") + " (1 insight)" : t("profile.insightsSubtitle")}
-            />
-            <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {limitedProfile.insights.map((insight, i) => (
-                <AnimatedItem key={i}>
-                  <ProfileInsightCard insight={insight} />
-                </AnimatedItem>
-              ))}
-            </div>
-          </section>
-        </AnimatedSection>
+        <section className="mt-10">
+          <SectionTitle
+            title={t("profile.insightsTitle")}
+            subtitle={isMini ? t("profile.insightsSubtitle") + " (1 insight)" : t("profile.insightsSubtitle")}
+          />
+          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {limitedProfile.insights.map((insight, i) => (
+              <ProfileInsightCard key={i} insight={insight} />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Sections premium verrouillées (si mini) */}

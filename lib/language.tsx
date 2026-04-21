@@ -316,10 +316,10 @@ const translations: Record<Language, Record<string, string>> = {
     "privacy.rightsList3": "T'opposer au traitement de tes données",
     "privacy.rightsList4": "Retirer ton consentement à tout moment",
     "privacy.contactTitle": "Contact",
-    "privacy.contactDesc": "Pour toute question concernant cette politique ou pour exercer tes droits, contacte-nous via les canaux de support disponibles.",
+    "privacy.contactDesc": "Pour toute question sur cette politique ou pour exercer tes droits, contacte-nous via les canaux de support disponibles.",
     "footer.legal": "Mentions Légales",
-    "footer.privacy": "Confidentialité",
-    "footer.crafted": "Conçu avec ❤️ par l'équipe TheCall.",
+    "footer.privacy": "Cookie & Privacy",
+    "footer.crafted": "Crafted with ❤️ by TheCall Team.",
     
     // Match Page - Error messages
     "match.puuidMissing": "PUUID manquant",
@@ -356,6 +356,11 @@ const translations: Record<Language, Record<string, string>> = {
     "profile.insightsSubtitle": "Analyse personnalisée de ton gameplay",
     "profile.statsTitle": "Stats par rôle",
     "profile.statsSubtitle": "Performance détaillée sur chaque position",
+    "profile.trendsTitle": "Tendances",
+    "profile.trendsSubtitle": "Évolution sur tes 10 dernières parties",
+    "profile.trends.cs": "CS / minute",
+    "profile.trends.kp": "Effort collectif",
+    "profile.trends.vision": "Contrôle Vision",
     "profile.unavailable": "Profil indisponible",
     "profile.unavailableDesc": "Impossible de charger ton profil.",
     "profile.puuidHint": "Le service est momentanément indisponible.",
@@ -729,6 +734,11 @@ const translations: Record<Language, Record<string, string>> = {
     "profile.insightsSubtitle": "Personalized analysis of your gameplay",
     "profile.statsTitle": "Stats by role",
     "profile.statsSubtitle": "Detailed performance on each position",
+    "profile.trendsTitle": "Trends",
+    "profile.trendsSubtitle": "Performance evolution over your last 10 games",
+    "profile.trends.cs": "CS / minute",
+    "profile.trends.kp": "Collective Effort",
+    "profile.trends.vision": "Vision Control",
     "profile.unavailable": "Profile unavailable",
     "profile.unavailableDesc": "Unable to load your profile.",
     "profile.puuidHint": "Service is temporarily unavailable.",
@@ -767,36 +777,25 @@ const translations: Record<Language, Record<string, string>> = {
   },
 };
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("fr");
-  
-  // Debug log pour voir l'état à chaque render
-  console.log("[Language] Provider Render - Language:", language);
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [language, setLanguageState] = useState<Language>("en");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Utiliser setTimeout pour éviter setState synchrone dans useEffect
-    setTimeout(() => {
-      const savedLanguage = localStorage.getItem("language");
-      const browserLang = typeof navigator !== "undefined" ? navigator.language.split("-")[0] : "fr";
-      
-      let initialLang: Language = "fr";
-      
-      if (savedLanguage === "en" || savedLanguage === "us") {
-        initialLang = "en";
-      } else if (savedLanguage === "fr") {
-        initialLang = "fr";
-      } else if (browserLang === "en") {
-        initialLang = "en";
-      }
-      
-      console.log("[Language] Initializing with:", initialLang, "(from saved:", savedLanguage, "browser:", browserLang, ")");
-      setLanguageState(initialLang);
-    }, 0);
+    // Determine language after mount to avoid hydration mismatch
+    const savedLanguage = typeof window !== "undefined" ? localStorage.getItem("language") : null;
+    const browserLang = typeof window !== "undefined" ? navigator.language.slice(0, 2) : "en";
+    
+    const initialLang = (savedLanguage === "en" || savedLanguage === "fr") 
+      ? savedLanguage 
+      : (browserLang === "fr" ? "fr" : "en");
+    
+    setLanguageState(initialLang as Language);
+    setMounted(true);
   }, []);
 
   const setLanguage = useCallback((lang: string) => {
     const normalized = (lang === "us" || lang === "en") ? "en" : "fr";
-    console.log("[Language] setLanguage:", lang, "->", normalized);
     setLanguageState(normalized as Language);
     if (typeof window !== "undefined") {
       localStorage.setItem("language", normalized);
@@ -804,8 +803,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback((key: string, params?: Record<string, string>): string => {
-    const activeLang = (language === "en" || language === "fr") ? language : "fr";
-    const translation = translations[activeLang]?.[key] || translations["fr"]?.[key] || key;
+    // If not mounted, ALWAYS use "en" (or whatever the server used)
+    const effectiveLang = mounted ? language : "en";
+    const activeLang = (effectiveLang === "en" || effectiveLang === "fr") ? effectiveLang : "en";
+    
+    const translation = translations[activeLang]?.[key] || translations["en"]?.[key] || key;
     if (params) {
       return Object.entries(params).reduce(
         (str, [param, value]) => str.replace(new RegExp(`\\{${param}\\}`, "g"), value),
@@ -813,9 +815,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       );
     }
     return translation;
-  }, [language]);
+  }, [language, mounted]);
 
-  // Toujours fournir le contexte, même si pas encore monté
   const contextValue = useMemo(() => ({
     language,
     setLanguage,

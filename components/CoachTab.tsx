@@ -8,6 +8,9 @@ import { PoroLoader } from "./PoroLoader";
 import type { CoachingReport } from "@/types/coaching";
 import { getUserTier, canDoCoaching } from "@/lib/tier";
 import { useLanguage } from "@/lib/language";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMatchStore } from "@/lib/store/matchStore";
+import { ScrambleText } from "./ScrambleText";
 
 
 import { BuildAnalysisCard } from "@/components/BuildAnalysisCard";
@@ -55,6 +58,9 @@ export function CoachTab({
   });
   const [showFirstBanner, setShowFirstBanner] = useState(false);
   const { t } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setHighlightedMinute } = useMatchStore();
 
   const loadingRef = useRef(false);
 
@@ -299,10 +305,21 @@ export function CoachTab({
             {report && hasQuota && (report.turningPoint || report.focus || report.action) && (
               <div className="grid gap-4 md:grid-cols-3">
                 {report.turningPoint && (
-                  <div>
-                    <div className={`rounded-2xl border ${theme.border} ${theme.bg} ${theme.glow} p-5 transition-all duration-500`}>
+                  <button 
+                    onClick={() => {
+                        const min = parseInt(report.turningPoint?.timestamp?.split(':')[0] || "0");
+                        setHighlightedMinute(min, t("coaching.turningPoint"));
+                        
+                        // Switch tab to overview with Next.js router
+                        const params = new URLSearchParams(searchParams.toString());
+                        params.set('tab', 'overview');
+                        router.push(`?${params.toString()}`, { scroll: true });
+                    }}
+                    className="group block w-full text-left transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 rounded-2xl"
+                  >
+                    <div className={`rounded-2xl border ${theme.border} ${theme.bg} ${theme.glow} p-5 transition-all duration-500 group-hover:border-cyan-400/40`}>
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300" style={{ color: theme.color }}>
-                        {t("coaching.turningPoint")}
+                        <ScrambleText text={t("coaching.turningPoint")} trigger="mount" />
                       </div>
                       <p className="text-sm text-white/90">
                         {report.turningPoint.timestamp && (
@@ -318,13 +335,13 @@ export function CoachTab({
                         </p>
                       )}
                     </div>
-                  </div>
+                  </button>
                 )}
                 {report.focus && (
                   <div>
                     <div className={`rounded-2xl border ${theme.border} ${theme.bg} ${theme.glow} p-5 transition-all duration-500`}>
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: theme.color }}>
-                        {t("coaching.focus")}
+                        <ScrambleText text={t("coaching.focus")} trigger="mount" />
                       </div>
                       <p className="text-sm text-white/90">
                         {report.focus.description}
@@ -336,7 +353,7 @@ export function CoachTab({
                   <div>
                     <div className={`rounded-2xl border ${theme.border} ${theme.bg} ${theme.glow} p-5 transition-all duration-500`}>
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: theme.color }}>
-                        {t("coaching.action")}
+                        <ScrambleText text={t("coaching.action")} trigger="mount" />
                       </div>
                       <p className="text-sm text-white/90">
                         {report.action.description}

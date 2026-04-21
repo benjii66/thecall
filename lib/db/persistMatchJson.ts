@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { invalidateProfileAggregate } from "@/lib/profileAggregateCache";
 
 interface PersistMatchJsonParams {
   userId: string;
@@ -60,6 +61,9 @@ export async function persistMatchJson(params: PersistMatchJsonParams) {
         hasMatchJson: true,
       },
     });
+    
+    // Invalidate Profile Cache so the user sees the newly analyzed match in their profile
+    await invalidateProfileAggregate(userPuuid);
     // logger.debug(`[DB] matchJson persist OK (matchId=${matchId})`);
 
   } catch (error) {
