@@ -6,7 +6,7 @@ import { ProfileInsightCard } from "@/components/ProfileInsightCard";
 import { ProfileStats } from "@/components/ProfileStats";
 import { ProfilePlaystyle } from "@/components/ProfilePlaystyle";
 import { ProfileTrends } from "@/components/ProfileTrends";
-import { AnimatedSection, AnimatedItem } from "@/components/AnimatedSection";
+import { AnimatedSection } from "@/components/AnimatedSection";
 import { ProfilePageTransition } from "@/components/ProfilePageTransition";
 import { MiniProfile } from "@/components/MiniProfile";
 import { hasMiniProfileAccess, hasFullProfileAccess } from "@/lib/tier";

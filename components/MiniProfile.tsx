@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AnimatedSection, AnimatedItem } from "./AnimatedSection";
+import { AnimatedSection } from "./AnimatedSection";
 import { ConversionBanner } from "./ConversionBanner";
 import { PaywallSection } from "./PaywallSection";
 import { ProfilePlaystyle } from "./ProfilePlaystyle";
