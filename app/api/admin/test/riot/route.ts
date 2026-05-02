@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
+import { getSafeErrorMessage, validateOrigin } from "@/lib/security";
 
 export async function POST(req: NextRequest) {
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
   try {
     const session = await verifyAdminSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,10 +23,10 @@ export async function POST(req: NextRequest) {
         const errorData = await res.json().catch(() => ({}));
         return NextResponse.json({ 
             success: false, 
-            error: errorData.status?.message || `Riot API Error: ${res.status}` 
+            error: getSafeErrorMessage(errorData.status?.message || `Riot API Error: ${res.status}`, "Erreur API Riot") 
         });
     }
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message });
+    return NextResponse.json({ success: false, error: getSafeErrorMessage(err) });
   }
 }

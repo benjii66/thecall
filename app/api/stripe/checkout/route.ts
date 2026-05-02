@@ -3,8 +3,16 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ensureUser } from "@/lib/db/ensureUser";
+import { validateOrigin } from "@/lib/security";
+import { isDemoModeActive } from "@/lib/settings";
 
 export async function POST(req: NextRequest) {
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
+  if (await isDemoModeActive()) {
+      return NextResponse.json({ error: "La facturation est désactivée pendant la période de validation." }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     let { userId, priceId } = body; 

@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
-import { getSessionUserId } from "@/lib/session";
+import { getAuthUserSafe } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { validateOrigin } from "@/lib/security";
 
 export async function POST(req: Request) {
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const userId = await getSessionUserId();
+  const userId = await getAuthUserSafe();
   if (!userId) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }

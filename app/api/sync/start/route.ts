@@ -3,11 +3,14 @@ import { syncSchema } from "@/lib/validations/api";
 import { acquireSyncLock, releaseSyncLock, setSyncStatus } from "@/lib/profileCache";
 import { computeProfileData } from "../../profile/route"; 
 import * as Sentry from "@sentry/nextjs";
+import { validateOrigin } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
     try {
         const body = await req.json();
         const parsed = syncSchema.safeParse(body);

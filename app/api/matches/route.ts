@@ -1,10 +1,12 @@
 export const runtime = "nodejs";
 // GET /api/matches - Liste des matchs avec pagination intelligente
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { getAuthUserSafe } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { getMatchesListController } from "@/lib/controllers/matchController";
 import type { MatchListItem } from "@/types/matchList";
-import { validatePuuid, validateGameType } from "@/lib/security";
+import { getSafeErrorMessage, validateGameType } from "@/lib/security";
+import { isDemoModeActive } from "@/lib/settings";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { logger } from "@/lib/logger";
 import { addApiCacheHeaders } from "@/lib/cacheHeaders";
@@ -12,12 +14,11 @@ import { addApiCacheHeaders } from "@/lib/cacheHeaders";
 export async function GET(req: Request) {
   // Vérifier que la clé API est présente
   if (!process.env.RIOT_API_KEY) {
-    console.error("[MATCHES API] ❌ RIOT_API_KEY manquante - Vérifie ton fichier .env.local");
     logger.error("[MATCHES API] RIOT_API_KEY manquante");
     return NextResponse.json(
       { 
         matches: [] as MatchListItem[],
-        error: "Configuration serveur: RIOT_API_KEY manquante. Vérifie ton fichier .env.local",
+        error: getSafeErrorMessage(null, "Configuration serveur incomplète"),
       },
       { status: 500 }
     );
@@ -48,34 +49,30 @@ export async function GET(req: Request) {
     return response;
   }
 
+  const isDemoMode = await isDemoModeActive();
   const { searchParams } = new URL(req.url);
-  const puuidParam = searchParams.get("puuid");
   const typeParam = searchParams.get("type");
+  const puuidParam = searchParams.get("puuid");
 
-  // Cookie puuid
-  const cookieStore = await cookies();
-  const cookiePuuid = cookieStore.get("user_puuid")?.value;
-  
-  // Dev fallback strictly controlled
-  const devPuuid = process.env.NODE_ENV === "development" ? process.env.MY_PUUID : undefined;
-
-  // Valider les inputs
-  const rawPuuid = puuidParam || cookiePuuid || devPuuid || "";
-  
-  const validPuuid = validatePuuid(rawPuuid);
-  
-  const validType = validateGameType(typeParam) ?? "all";
-
-  if (!validPuuid) {
-    logger.error("[MATCHES API] PUUID invalide", undefined, { puuidParam, envPuuid: process.env.MY_PUUID });
-    return NextResponse.json(
-      { 
-        matches: [] as MatchListItem[],
-        error: "PUUID invalide ou manquant",
-      },
-      { status: 200 }
-    );
+  // 1. Authenticate Session
+  const userId = await getAuthUserSafe();
+  if (!userId) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
+
+  // 2. Fetch User from DB to get the REAL PUUID
+  const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { riotPuuid: true }
+  });
+
+  if (!user || !user.riotPuuid) {
+      return NextResponse.json({ error: "Profil Riot non lié" }, { status: 404 });
+  }
+
+  // Allow external PUUID only in Demo Mode for Riot validation
+  const validPuuid = (isDemoMode && puuidParam) ? puuidParam : user.riotPuuid;
+  const validType = validateGameType(typeParam) ?? "all";
 
   try {
     logger.debug("[MATCHES API] Début fetch matches", { validPuuid: validPuuid.substring(0, 10) + "...", validType });
@@ -100,17 +97,18 @@ export async function GET(req: Request) {
     
     return response;
   } catch (err) {
-    // Log console
+    // Log console (serveur uniquement)
     console.error("[MATCHES API] ❌ ERREUR:", err);
+    logger.error("[MATCHES API] Error occurred", { error: err instanceof Error ? err.message : String(err) });
     
     const error = err as Error & { status?: number; isRiotError?: boolean };
     
-    // Si c'est une erreur Riot API, on renvoie un message d'erreur clair
+    // Si c'est une erreur Riot API, on renvoie un message d'erreur clair mais sécurisé
     if (error.isRiotError) {
       const response = NextResponse.json(
         {
           matches: [] as MatchListItem[],
-          error: error.message,
+          error: getSafeErrorMessage(error, "Le service Riot Games est temporairement indisponible"),
           errorCode: error.status,
         },
         { status: 200 } 
@@ -124,7 +122,7 @@ export async function GET(req: Request) {
     const response = NextResponse.json(
       {
         matches: [] as MatchListItem[],
-        error: error.message || "Erreur lors de la récupération des matchs",
+        error: getSafeErrorMessage(err, "Erreur lors de la récupération des matchs"),
       },
       { status: 200 }
     );

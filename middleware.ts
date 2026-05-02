@@ -16,13 +16,9 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith(route)) {
       // 1. Récupérer un userId de session VALIDE et SIGNÉ
       const session = request.cookies.get("session")?.value;
+      const adminSession = request.cookies.get("admin_session")?.value;
       
-      // Note: On ne peut pas facilement importer lib/session ici car il utilise node:crypto
-      // qui n'est pas dispo dans l'Edge Runtime par défaut de Next.js middleware
-      // Sauf si nextjs est configuré en nodejs runtime pour le middleware (rare)
-      // On va faire une vérification basique de la présence ou rediriger
-      
-      if (!session) {
+      if (!session && !adminSession) {
         if (pathname.startsWith("/api/")) {
           return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
         }

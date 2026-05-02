@@ -1,9 +1,12 @@
 export const runtime = "nodejs";
 // GET /api/match/[id] - Détails complets d'un match
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthUserSafe } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { getMatchDetailsController } from "@/lib/controllers/matchController";
+import { isDemoModeActive } from "@/lib/settings";
 import type { MatchPageData } from "@/types/match";
-import { validateMatchId, validatePuuid } from "@/lib/security";
+import { getSafeErrorMessage, validateMatchId } from "@/lib/security";
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from "@/lib/rateLimit";
 import { logger } from "@/lib/logger";
 import { addApiCacheHeaders } from "@/lib/cacheHeaders";
@@ -44,20 +47,29 @@ export async function GET(
     );
   }
 
+  const isDemoMode = await isDemoModeActive();
   const { searchParams } = new URL(req.url);
   const puuidParam = searchParams.get("puuid");
-  
-  // Valider le PUUID si fourni
-  const validPuuid = puuidParam
-    ? validatePuuid(puuidParam)
-    : validatePuuid(process.env.MY_PUUID || process.env.NEXT_PUBLIC_PUUID || "");
-  
-  if (!validPuuid) {
-    return NextResponse.json(
-      { error: "Invalid or missing PUUID" },
-      { status: 400 }
-    );
+
+  // 1. Authenticate Session
+  const userId = await getAuthUserSafe();
+  if (!userId) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
+
+  // 2. Fetch User from DB to get the REAL PUUID
+  const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { riotPuuid: true }
+  });
+
+  if (!user || !user.riotPuuid) {
+      return NextResponse.json({ error: "Profil Riot non lié" }, { status: 404 });
+  }
+
+  // Allow external PUUID only in Demo Mode for Riot validation
+  const validPuuid = (isDemoMode && puuidParam) ? puuidParam : user.riotPuuid;
+
 
   try {
     // Use controller logic
@@ -86,11 +98,11 @@ export async function GET(
     
     const error = err as Error & { status?: number; isRiotError?: boolean };
     
-    // Si c'est une erreur Riot API, on renvoie un message d'erreur clair
+    // Si c'est une erreur Riot API, on renvoie un message d'erreur clair mais sécurisé
     if (error.isRiotError) {
       return NextResponse.json(
         {
-          error: error.message,
+          error: getSafeErrorMessage(error, "Le service Riot Games est temporairement indisponible"),
           errorCode: error.status,
         },
         { status: error.status === 401 ? 401 : 500 }
@@ -98,7 +110,7 @@ export async function GET(
     }
     
     return NextResponse.json(
-      { error: "Failed to fetch match data" },
+      { error: getSafeErrorMessage(err, "Échec de la récupération des données du match") },
       { status: 500 }
     );
   }

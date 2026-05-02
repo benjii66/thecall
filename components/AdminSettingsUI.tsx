@@ -87,6 +87,14 @@ export default function AdminSettingsUI() {
         )}
 
         <div className="grid gap-6">
+          <ToggleSettingCard 
+            title="Mode Démo"
+            description="Active le bandeau de démo, désactive les paiements Stripe et autorise la recherche de PUUID tiers pour validation Riot."
+            currentValue={settings["NEXT_PUBLIC_DEMO_MODE"] === "true"}
+            onToggle={(val: boolean) => handleUpdate("NEXT_PUBLIC_DEMO_MODE", val ? "true" : "false")}
+            isSaving={saving === "NEXT_PUBLIC_DEMO_MODE"}
+          />
+
           <SettingCard 
             title="Riot Games API Key"
             description="Clé de développement Riot Games. Expire toutes les 24h. Prioritaire sur RIOT_API_KEY dans .env."
@@ -150,6 +158,47 @@ export default function AdminSettingsUI() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ToggleSettingCardProps {
+  title: string;
+  description: string;
+  currentValue: boolean;
+  onToggle: (val: boolean) => void;
+  isSaving: boolean;
+}
+
+function ToggleSettingCard({ title, description, currentValue, onToggle, isSaving }: ToggleSettingCardProps) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/40 p-6 backdrop-blur-xl transition-all hover:border-white/20">
+      <div className="flex items-center justify-between gap-6">
+        <div className="space-y-1">
+          <h3 className="font-bold text-white flex items-center gap-2">
+            <Activity className="h-4 w-4 text-emerald-400" />
+            {title}
+          </h3>
+          <p className="text-xs text-white/40">{description}</p>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {isSaving && <Loader2 className="h-4 w-4 animate-spin text-white/40" />}
+          <button
+            onClick={() => onToggle(!currentValue)}
+            disabled={isSaving}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
+              currentValue ? "bg-emerald-500" : "bg-white/10"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                currentValue ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
         </div>
       </div>
     </div>

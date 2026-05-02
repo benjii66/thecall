@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { getSafeErrorMessage, validateOrigin } from "@/lib/security";
 
 export async function POST(req: NextRequest) {
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
   try {
     const session = await verifyAdminSession();
     if (!session) {
@@ -30,6 +33,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, message: "Rapport supprimé, prêt pour régénération." });
   } catch (error: any) {
     console.error("[ADMIN_REPORT_REGENERATE]", error);
-    return NextResponse.json({ error: error.message || "Erreur lors de la suppression du rapport" }, { status: 500 });
+    return NextResponse.json({ error: getSafeErrorMessage(error, "Erreur lors de la suppression du rapport") || "Erreur lors de la suppression du rapport" }, { status: 500 });
   }
 }

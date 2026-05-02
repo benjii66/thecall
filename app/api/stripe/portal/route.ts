@@ -3,19 +3,25 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { cookies } from "next/headers";
+import { validateOrigin } from "@/lib/security";
+import { getAuthUserSafe } from "@/lib/session";
+import { isDemoModeActive } from "@/lib/settings";
 
 export async function POST(req: NextRequest) {
-  try {
-    const cookieStore = await cookies();
-    const puuid = cookieStore.get("user_puuid")?.value;
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
 
-    if (!puuid) {
+  if (await isDemoModeActive()) {
+      return NextResponse.json({ error: "Le portail de facturation est désactivé pendant la période de validation." }, { status: 403 });
+  }
+
+  try {
+    const userId = await getAuthUserSafe();
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({
-      where: { riotPuuid: puuid },
+      where: { id: userId },
     });
 
     if (!user || !user.stripeCustomerId) {

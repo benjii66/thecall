@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
-const SESSION_SECRET = process.env.SESSION_SECRET || "fallback-secret-at-least-32-chars-long-!!!";
+const SESSION_SECRET = process.env.SESSION_SECRET as string;
+if (!SESSION_SECRET) throw new Error("SESSION_SECRET manquant !");
 
 /**
  * Signe une valeur avec HMAC-SHA256
@@ -36,16 +37,13 @@ export async function createSession(userId: string, riotPuuid?: string) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
-    maxAge: 30 * 24 * 60 * 60, // 30 jours
+    maxAge: 7 * 24 * 60 * 60, // 7 jours
   };
 
   cookieStore.set("session", sessionValue, cookieOptions);
   
   if (riotPuuid) {
-    cookieStore.set("user_puuid", riotPuuid, {
-      ...cookieOptions,
-      httpOnly: false, // Accessible by client to identify current player context if needed
-    });
+    cookieStore.set("user_puuid", riotPuuid, cookieOptions);
   }
 }
 
@@ -68,29 +66,36 @@ export async function getSessionUserId(): Promise<string | null> {
   return null;
 }
 
+import { verifyAdminSession } from "./admin-auth";
+import { prisma } from "./prisma";
+
 /**
  * Robust authentication: 
- * 1. Try secure session
- * 2. Fallback to PUUID cookie + DB lookup (Soft login)
+ * 1. Try secure user session
+ * 2. Fallback to Admin session (Bypass for owner/dev)
  */
 export async function getAuthUserSafe(): Promise<string | null> {
+  // 1. Session classique
   const sessionUserId = await getSessionUserId();
   if (sessionUserId) return sessionUserId;
 
-  const cookieStore = await cookies();
-  const puuid = cookieStore.get("user_puuid")?.value;
-  
-  if (puuid) {
-    try {
-        const { prisma } = await import("@/lib/prisma");
-        const user = await prisma.user.findUnique({
-            where: { riotPuuid: puuid },
-            select: { id: true }
+  // 2. Bypass Admin : Si on est connecté au panel admin, on cherche l'utilisateur 
+  // qui correspond au PUUID de config pour permettre les tests.
+  try {
+    const adminSession = await verifyAdminSession();
+    if (adminSession) {
+      // On cherche l'utilisateur qui a le PUUID "maître"
+      const masterPuuid = process.env.MY_PUUID;
+      if (masterPuuid) {
+        const user = await prisma.user.findFirst({
+          where: { riotPuuid: masterPuuid },
+          select: { id: true }
         });
-        return user?.id || null;
-    } catch (e) {
-        console.error("[Session] Fallback lookup failed", e);
+        if (user) return user.id;
+      }
     }
+  } catch (e) {
+    // Ignore error
   }
 
   return null;

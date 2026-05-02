@@ -8,6 +8,7 @@ import { CookieConsent } from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SkipLink } from "@/components/SkipLink";
 import { Footer } from "@/components/Footer";
+import { DemoPopup } from "@/components/DemoPopup";
 import { validateEnv } from "@/lib/env";
 
 // Valider les variables d'environnement au démarrage
@@ -72,6 +73,7 @@ export default function RootLayout({
             <NotificationSystem />
             <CookieConsent />
             <Footer />
+            <DemoPopup />
           </LanguageProvider>
         </ErrorBoundary>
       </body>

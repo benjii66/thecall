@@ -1,7 +1,5 @@
 // lib/rateLimit.ts - Rate limiting avec fallback automatique Redis → Mémoire
-// En production, utiliser Redis (Upstash) pour un rate limiting distribué
-// En développement ou si Redis n'est pas configuré, utilise la mémoire
-
+import { logger } from "./logger";
 import { checkRateLimitRedis } from "./rateLimitRedis";
 
 type RateLimitStore = Map<string, { count: number; resetAt: number }>;
@@ -40,12 +38,26 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   // Essayer Redis d'abord
   const redisResult = await checkRateLimitRedis(key, config);
+  
   if (redisResult !== null) {
+    if (!redisResult.allowed) {
+      logger.warn("[RateLimit] Limit exceeded (Redis)", { 
+        key: key.includes("user:") ? "user:***" : key.substring(0, 15) + "...", 
+        max: config.maxRequests 
+      });
+    }
     return redisResult;
   }
 
   // Fallback sur la mémoire
-  return checkRateLimitMemory(key, config);
+  const memoryResult = checkRateLimitMemory(key, config);
+  if (!memoryResult.allowed) {
+    logger.warn("[RateLimit] Limit exceeded (Memory)", { 
+      key: key.includes("user:") ? "user:***" : key.substring(0, 15) + "...", 
+      max: config.maxRequests 
+    });
+  }
+  return memoryResult;
 }
 
 /**
@@ -93,144 +105,80 @@ function checkRateLimitMemory(
  * Obtient l'IP du client depuis la requête
  */
 export function getClientIP(request: Request): string {
-  // Vérifier les headers proxy (Vercel, Cloudflare, etc.)
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
-    // Prendre la première IP (celle du client réel)
     const ip = forwarded.split(",")[0].trim();
-    if (ip && ip !== "unknown") {
-      return ip;
-    }
+    if (ip && ip !== "unknown") return ip;
   }
 
   const realIP = request.headers.get("x-real-ip");
-  if (realIP && realIP !== "unknown") {
-    return realIP;
-  }
+  if (realIP && realIP !== "unknown") return realIP;
 
-  // En développement local, générer un identifiant unique par requête
-  // pour éviter que toutes les requêtes partagent le même quota
-  // En production, cela ne devrait jamais arriver (toujours un proxy avec x-forwarded-for)
   if (process.env.NODE_ENV === "development") {
-    // Utiliser un timestamp + random pour créer un identifiant unique par session
-    // Cela permet de tester sans être bloqué par le rate limiting
-    return `dev-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return `dev-${Date.now()}`;
   }
 
-  // Fallback (ne devrait jamais arriver en production)
   return "unknown";
 }
 
 /**
  * Configuration par défaut pour les routes API
- * En développement, on augmente les limites pour éviter les blocages
  */
 export const DEFAULT_RATE_LIMIT: RateLimitConfig = {
-  windowMs: 60 * 1000, // 1 minute
-  maxRequests: process.env.NODE_ENV === "development" ? 1000 : 100, // Plus permissif en dev
+  windowMs: 60 * 1000,
+  maxRequests: process.env.NODE_ENV === "development" ? 1000 : 100,
 };
 
 /**
- * Configuration stricte pour les routes sensibles (coaching, etc.)
- * En développement, on augmente les limites pour éviter les blocages
+ * Configuration stricte pour les routes sensibles
  */
 export const STRICT_RATE_LIMIT: RateLimitConfig = {
-  windowMs: 60 * 1000, // 1 minute
-  maxRequests: process.env.NODE_ENV === "development" ? 100 : 10, // Plus permissif en dev
+  windowMs: 60 * 1000,
+  maxRequests: process.env.NODE_ENV === "development" ? 100 : 10,
 };
 
 /**
- * Obtient un identifiant unique pour le rate limiting depuis une requête
- * 
- * Stratégie multi-niveaux pour supporter plusieurs utilisateurs :
- * 1. Si userId disponible (session/cookie) → `user:${userId}` (priorité)
- * 2. Si session token disponible → `session:${tokenHash}` (distinction par session)
- * 3. Sinon → `ip:${clientIP}` (fallback par IP)
- * 
- * Cela permet de :
- * - Distinguer les utilisateurs même sans auth complète
- * - Éviter que plusieurs utilisateurs partageant la même IP se bloquent mutuellement
- * - Préparer la migration vers un système basé sur userId
+ * Extrait le userId depuis la requête (session/cookie)
+ */
+function getUserIdFromRequest(request: Request): string | null {
+  const cookies = request.headers.get("cookie");
+  if (!cookies) return null;
+
+  const sessionMatch = cookies.match(/(?:^|;\s*)session=([^;]+)/i);
+  if (!sessionMatch?.[1]) return null;
+
+  const sessionValue = decodeURIComponent(sessionMatch[1]);
+  const [userId] = sessionValue.split(".");
+  return userId || null;
+}
+
+/**
+ * Obtient un identifiant unique pour le rate limiting
  */
 export function getRateLimitIdentifier(request: Request): string {
-  // 1. Priorité : userId depuis session/cookie (quand auth sera implémentée)
   const userId = getUserIdFromRequest(request);
-  if (userId) {
-    return `user:${userId}`;
+  if (userId) return `user:${userId}`;
+
+  // Fallback session token
+  const cookies = request.headers.get("cookie");
+  const sessionMatch = cookies?.match(/(?:^|;\s*)(?:session-id|session-token|sid)=([^;]+)/i);
+  if (sessionMatch?.[1]) {
+    return `session:${hashToken(sessionMatch[1])}`;
   }
 
-  // 2. Session token (cookie ou header) pour distinguer les sessions
-  // Même sans auth complète, on peut utiliser un token de session unique
-  const sessionToken = getSessionTokenFromRequest(request);
-  if (sessionToken) {
-    // Hash le token pour éviter d'exposer des données sensibles dans les logs
-    const tokenHash = hashToken(sessionToken);
-    return `session:${tokenHash}`;
-  }
-
-  // 3. Fallback : IP uniquement (limitation : plusieurs utilisateurs = même quota)
   const clientIP = getClientIP(request);
   return `ip:${clientIP}`;
 }
 
 /**
- * Extrait le userId depuis la requête (session/cookie)
- * TODO: Implémenter quand l'authentification sera disponible
- */
-function getUserIdFromRequest(_request: Request): string | null {
-  void _request;
-  // Exemple d'implémentation future :
-  // const cookies = request.headers.get("cookie");
-  // const sessionId = extractSessionId(cookies);
-  // const userId = await getUserIdFromSession(sessionId);
-  // return userId;
-  return null;
-}
-
-/**
- * Extrait un token de session depuis la requête
- * Peut être un cookie de session ou un header personnalisé
- * 
- * ⚠️ IMPORTANT : Les cookies de session ne sont utilisés que si l'utilisateur
- * a consenti aux cookies fonctionnels (conformité RGPD).
- * Le consentement est vérifié côté client et stocké dans localStorage.
- * En production, il faudrait vérifier le consentement côté serveur également.
- */
-function getSessionTokenFromRequest(request: Request): string | null {
-  // Chercher dans les cookies
-  const cookies = request.headers.get("cookie");
-  if (cookies) {
-    // Chercher un cookie de session (ex: session-id, session-token, etc.)
-    const sessionMatch = cookies.match(/(?:^|;\s*)(?:session-id|session-token|sid)=([^;]+)/i);
-    if (sessionMatch?.[1]) {
-      // TODO: Vérifier le consentement aux cookies fonctionnels côté serveur
-      // Pour l'instant, on fait confiance au client (localStorage)
-      // En production, utiliser un cookie sécurisé pour stocker le consentement
-      return sessionMatch[1];
-    }
-  }
-
-  // Chercher dans les headers personnalisés
-  const sessionHeader = request.headers.get("x-session-id") || request.headers.get("x-session-token");
-  if (sessionHeader) {
-    return sessionHeader;
-  }
-
-  return null;
-}
-
-/**
  * Hash un token pour éviter d'exposer des données sensibles
- * Utilise un hash simple (pas de crypto lourd nécessaire ici)
  */
 function hashToken(token: string): string {
-  // Hash simple pour créer un identifiant unique mais non réversible
-  // En production, on pourrait utiliser crypto.createHash('sha256')
   let hash = 0;
   for (let i = 0; i < token.length; i++) {
     const char = token.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = hash & hash;
   }
   return Math.abs(hash).toString(36);
 }

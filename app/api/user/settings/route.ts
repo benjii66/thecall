@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionUserId } from "@/lib/session";
+import { getAuthUserSafe } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { validateOrigin } from "@/lib/security";
+import { isDemoModeActive } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
     try {
-        const userId = await getSessionUserId();
+        const userId = await getAuthUserSafe();
         if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const user = await prisma.user.findUnique({
@@ -42,8 +44,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+    if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
+    if (await isDemoModeActive()) {
+        return NextResponse.json({ error: "Modifications désactivées en mode démo." }, { status: 403 });
+    }
+
     try {
-        const userId = await getSessionUserId();
+        const userId = await getAuthUserSafe();
         if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const body = await req.json();

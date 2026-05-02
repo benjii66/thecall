@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { validateOrigin } from "@/lib/security";
+import { getRedisClient } from "@/lib/redis";
 
 export async function POST(req: NextRequest) {
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
   try {
     const session = await verifyAdminSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,6 +27,12 @@ export async function POST(req: NextRequest) {
       create: { key, value },
     });
 
+    // Clear Redis Cache
+    const redis = getRedisClient();
+    if (redis) {
+      await redis.del(`config:${key}`);
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Settings update failed", err);
@@ -42,10 +52,13 @@ export async function GET() {
       }
     });
     
-    // Mask values for security
+    // Mask values for security, but exempt non-sensitive ones like Demo Mode
+    const publicKeys = ["NEXT_PUBLIC_DEMO_MODE"];
     const masked = settings.map(s => ({
       key: s.key,
-      value: s.value ? `${s.value.substring(0, 8)}...` : ""
+      value: (publicKeys.includes(s.key) || !s.value) 
+        ? s.value 
+        : `${s.value.substring(0, 8)}...`
     }));
 
     return NextResponse.json({ settings: masked });

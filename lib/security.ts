@@ -137,6 +137,50 @@ export function hasDangerousChars(input: string): boolean {
 }
 
 /**
+ * Sanitizes content used in AI prompts to prevent Prompt Injection attacks.
+ * It removes or neutralizes common attack patterns like "ignore previous instructions".
+ */
+export function sanitizePromptContent(input: string): string {
+  if (!input) return "";
+
+  // Common injection patterns (case insensitive)
+  const forbiddenPatterns = [
+    /ignore (all )?previous instructions/gi,
+    /forget everything/gi,
+    /you are now/gi,
+    /system prompt/gi,
+    /stop analyzing/gi,
+    /new rules/gi,
+    /###/g, // Prevent breaking custom delimiters
+    /\[\[/g, // Prevent potential markdown/scripting injections
+    /\]\]/g
+  ];
+
+  let sanitized = input;
+  forbiddenPatterns.forEach(pattern => {
+    sanitized = sanitized.replace(pattern, "[CONTENT_REMOVED_FOR_SECURITY]");
+  });
+
+  // Limit length to avoid overwhelming the context and prevent long-text attacks
+  return sanitized.substring(0, 5000);
+}
+
+/**
+ * Returns a safe error message for the client.
+ * In production, sensitive details are hidden.
+ */
+export function getSafeErrorMessage(error: unknown, fallback = "Une erreur interne est survenue"): string {
+  if (process.env.NODE_ENV === "development") {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    return JSON.stringify(error);
+  }
+  
+  // Production: return generic message
+  return fallback;
+}
+
+/**
  * Validates the Origin header for CSRF protection.
  * Returns true if the Origin matches the allowed site URL.
  */

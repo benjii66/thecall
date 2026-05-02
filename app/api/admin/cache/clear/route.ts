@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { validateOrigin } from "@/lib/security";
 
-export async function POST() {
+export async function POST(req: Request) {
+  if (!validateOrigin(req)) return NextResponse.json({ error: "Invalid Origin" }, { status: 403 });
+
   const session = await verifyAdminSession();
   if (!session) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
